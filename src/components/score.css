@@ -1,0 +1,17 @@
+.score-view { width: 100%; min-width: 0; }
+.score-system-scroll { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.score-system { position: relative; margin: 0 auto; isolation: isolate; }
+.score-engraving { position: absolute; inset: 0; pointer-events: none; }
+.score-engraving svg { display: block; }
+.score-hit { position: absolute; padding: 0; margin: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; color: #28634f; box-shadow: none; }
+.score-hit:hover { background: #28634f12; }
+.score-hit:focus-visible { outline: 2px solid #28634f; outline-offset: 2px; background: #28634f14; }
+.score-event { z-index: 2; }
+.score-event.is-selected { background: #28634f13; box-shadow: 0 0 0 1px #28634f45; }
+/* Keep notation visible beneath hit targets even when shared button styles apply. */
+button.score-hit:hover:not(:disabled), button.score-hit[aria-pressed='true'] { background: #28634f14; border-color: transparent; }
+.score-gap { z-index: 3; }
+.score-gap span { position: absolute; top: -1px; left: 1px; width: 14px; height: 14px; font: 13px/14px sans-serif; border-radius: 50%; color: #96a292; background: #fffef9; }
+.score-gap:hover span, .score-gap:focus-visible span, .score-gap.is-selected span { background: #28634f; color: white; }
+.score-gap.is-selected::after { content: ''; position: absolute; top: 19px; bottom: 0; width: 2px; left: 7px; background: #28634f; border-radius: 2px; box-shadow: 0 0 0 3px #28634f0a; }
+.score-render-error { color: #8f392d; font-size: .9rem; padding: 1rem; }

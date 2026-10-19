@@ -1,5 +1,16 @@
 # TypeNote — agent instructions
 
+## Established implementation
+
+- Browser app: React 19, TypeScript, Vite 7, VexFlow 5 SVG with embedded Bravura fonts; npm and package-lock.json.
+- Run `npm ci`, then `npm run dev`. Checks: `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` (requires `npx playwright install chromium`). No lint command is configured.
+- Structured score and exact timing live in `src/domain/`; 16 ticks per fixed 4/4 measure. Piano grand staff, one voice per staff, whole through sixteenth durations, octave 0–8, individual accidentals.
+- Confirmed input convention: H means B natural by default, B means B-flat. The selected accidental applies to letter entry except B, which always enters B-flat. Internal international step B is distinguished by alteration; user labels use H/B.
+- Version-2 notes/chords contain 1–10 pitches sharing one duration; pitch order is stable for individual editing. Duplicate step/octave positions are rejected. K/Build chord starts entry at one position; Enter finishes. Pitch chips select individual pitches; Shift+Delete removes one pitch. Version-1 single-note files are validated and migrated to version 2. File size limit is 10 MB.
+- Validated `.typenote.json` files are downloaded and opened locally. No automatic persistence across reloads, backend, hosting, accounts, or PDF recognition is implemented.
+- Direct PDF download uses pdf-lib and shared VexFlow engraving in `src/notation/`. A4 portrait, automatic pagination, ~15mm margins, and 300 dpi images of notation; no print dialog or external service. `src/export/` isolates pagination/export. Visually inspect actual rendered PDF pages after notation/export changes.
+- `README.md` documents keyboard controls, measure editing semantics, architecture, and known scope limits.
+
 ## Product purpose and confirmed requirements
 
 TypeNote helps musicians create and edit sheet music, motivated by playing piano.
