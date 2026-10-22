@@ -1,0 +1,24 @@
+.imported-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:14px; padding:18px 20px; border-bottom:1px solid #dfe4d7; }
+.imported-controls label { display:flex; flex-direction:column; gap:6px; font-size:11px; color:#667760; }
+.imported-controls input { width:145px; }
+.imported-controls .imported-note-picker select { max-width:360px; }
+.imported-accidentals { display:flex; gap:4px; margin-top:8px; }
+.imported-accidentals button { padding:7px 10px; }
+.imported-score { padding:24px; background:#eeeee6; min-height:250px; }
+.imported-score > p { padding:12px; font-size:13px; }
+.imported-page { background:white; margin:0 auto 22px; max-width:900px; box-shadow:0 2px 8px #253d2514; }
+.imported-page svg { width:100%; height:auto; display:block; }
+.imported-page [data-note-id] { cursor:pointer; }
+.imported-page [data-note-id]:hover, .imported-page .imported-selected { color:#267652; fill:#267652; stroke:#267652; }
+.imported-page .imported-selected use, .imported-page .imported-selected path { fill:#267652; }
+.imported-page [data-note-id]:focus-visible { outline:2px solid #46775b; }
+.imported-details { padding:13px 20px; border-bottom:1px solid #dfe4d7; font-size:12px; }
+.imported-details summary { cursor:pointer; font-weight:600; }
+.imported-details p { color:#64745d; line-height:1.7; }
+.imported-directions { display:flex; flex-wrap:wrap; gap:12px; }
+.imported-directions label { display:flex; flex-direction:column; gap:5px; font-size:11px; }
+.imported-details textarea { display:block; width:100%; min-height:260px; font:12px/1.5 monospace; color:#263c33; border:1px solid #dfe4d7; padding:12px; margin:12px 0; resize:vertical; }
+.imported-details button { margin-right:7px; }
+.imported-notices { padding:12px 20px; background:#fff5e6; color:#74572b; font-size:12px; line-height:1.6; }
+.imported-notices ul { margin:6px 0; padding-left:18px; }
+@media(max-width:740px) { .imported-score { padding:10px 4px; } .imported-controls { padding:14px 12px; } .imported-controls .imported-note-picker select { max-width:280px; } .imported-editor .document-name input { max-width:190px; } }

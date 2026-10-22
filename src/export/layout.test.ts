@@ -13,6 +13,11 @@ describe('A4 pagination', () => {
       expect(p.scale * 850).toBeCloseTo(CONTENT_WIDTH);
     }
   });
+  it('honors explicit page breaks without creating a blank first page', () => {
+    const placements = paginate([{ width: 850, height: 100, pageBreak: true }, { width: 850, height: 100, pageBreak: true }]);
+    expect(placements.map(p => p.page)).toEqual([0, 1]);
+    expect(placements[1].top).toBe(MARGIN);
+  });
   it('rejects a system that cannot fit instead of cropping it', () => {
     expect(() => paginate([{ width: 850, height: 2000 }])).toThrow(/too tall/);
   });

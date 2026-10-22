@@ -38,7 +38,7 @@ test('keyboard entry, pitch convention, rest, overflow, deletion, undo and redo'
   await page.keyboard.press('Control+Shift+z');
   const { score } = await savedDocument(page);
   expect(score.measures[0].treble.map((event: { kind: string }) => event.kind)).toEqual(['note', 'rest', 'note']);
-  expect(score.measures[0].treble[0].pitches[0]).toEqual({ step: 'B', alter: 0, octave: 4 });
+  expect(score.measures[0].treble[0].pitches[0]).toMatchObject({ step: 'B', alter: 0, octave: 4, accidental: 'auto' });
   expect(errors).toEqual([]);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
@@ -55,7 +55,7 @@ test('octaves, durations, selected-note controls and undo stay synchronized', as
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Eighth note', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Natural', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Follow signature', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel(/^staff$/i).selectOption('bass');
   await page.getByLabel(/^octave$/i).selectOption('2');
   await page.getByRole('button', { name: 'Enter music →' }).click();
@@ -114,11 +114,14 @@ test('opening a delayed file protects edits made during the read', async ({ page
 test('accidental cancellation, aligned rhythms and dense measures render correctly', async ({ page }) => {
   await start(page);
   await page.getByRole('button', { name: 'Enter music →' }).click();
-  await page.keyboard.type('bh');
+  await page.keyboard.type('b');
+  await page.getByRole('button', { name: 'Natural', exact: true }).click();
+  await page.keyboard.type('h');
   await page.getByRole('button', { name: 'Sharp', exact: true }).click();
   await page.keyboard.type('c');
   await page.getByRole('button', { name: 'Natural', exact: true }).click();
   await page.keyboard.type('c');
+  await page.getByRole('button', { name: 'Follow signature', exact: true }).click();
   await page.getByLabel(/^staff$/i).selectOption('bass');
   await page.getByRole('button', { name: 'Insert bass measure 1 position 1', exact: true }).click();
   await page.keyboard.type('2c');

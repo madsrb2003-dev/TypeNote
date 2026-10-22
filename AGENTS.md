@@ -2,13 +2,15 @@
 
 ## Established implementation
 
-- Browser app: React 19, TypeScript, Vite 7, VexFlow 5 SVG with embedded Bravura fonts; npm and package-lock.json.
+- Browser app: React 19, TypeScript, Vite 7, VexFlow 5 SVG with embedded Bravura fonts for native scores, Verovio 6.3 WebAssembly in a local worker for imported MusicXML; npm and package-lock.json.
 - Run `npm ci`, then `npm run dev`. Checks: `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e` (requires `npx playwright install chromium`). No lint command is configured.
-- Structured score and exact timing live in `src/domain/`; 16 ticks per fixed 4/4 measure. Piano grand staff, one voice per staff, whole through sixteenth durations, octave 0–8, individual accidentals.
-- Confirmed input convention: H means B natural by default, B means B-flat. The selected accidental applies to letter entry except B, which always enters B-flat. Internal international step B is distinguished by alteration; user labels use H/B.
-- Version-2 notes/chords contain 1–10 pitches sharing one duration; pitch order is stable for individual editing. Duplicate step/octave positions are rejected. K/Build chord starts entry at one position; Enter finishes. Pitch chips select individual pitches; Shift+Delete removes one pitch. Version-1 single-note files are validated and migrated to version 2. File size limit is 10 MB.
+- Structured version-3 score lives in `src/domain/`. Timing uses reduced rational sixteenth-note units for dots/tuplets; meter and pickup determine capacity. Four voices per staff, breve through 128th durations, octave 0–8, measure-boundary signature/meter/clef changes. `NOTATION.md` records supported notation and limits.
+- Confirmed input convention: default Auto follows key signature and in-bar accidental state without redundant local signs. H selects international step B; explicit Natural makes it B-natural. B always enters explicit B-flat. Named or manually assembled signatures are supported. Local Natural/Sharp/Flat/courtesy choices preserve display intent separately from pitch alteration.
+- Version-3 notes/chords contain 1–10 pitches sharing one duration; pitch order is stable for individual editing. Duplicate step/octave positions are rejected. K/Build chord starts entry at one position; Enter finishes. Chord noteheads and pitch chips select individual pitches with a blue highlight; Delete/Backspace removes an explicitly selected pitch, while Delete event removes the whole event. Shift+Delete removes the active pitch. Pitch selection is included in undo/redo snapshots. Version-1 single-note and version-2 chord files are validated and migrated to version 3. File size limit is 10 MB.
 - Validated `.typenote.json` files are downloaded and opened locally. No automatic persistence across reloads, backend, hosting, accounts, or PDF recognition is implemented.
 - Direct PDF download uses pdf-lib and shared VexFlow engraving in `src/notation/`. A4 portrait, automatic pagination, ~15mm margins, and 300 dpi images of notation; no print dialog or external service. `src/export/` isolates pagination/export. Visually inspect actual rendered PDF pages after notation/export changes.
+- UI MusicXML import uses `src/documents/`: complete score-partwise XML is authoritative in version-4 `{ kind: "musicxml" }` documents, with targeted pitch/fingering/metadata/direction edits and advanced source editing. Unknown source notation is retained, independently of renderer support. Imported history has up to 30 snapshots with a 32 MB budget. Compressed/timewise files are unsupported. `src/interchange/musicxml.ts` remains the native exporter and restricted compatibility adapter, not the UI import path.
+- Imported rendering uses `src/notation/imported.ts` and `imported.worker.ts`; `src/export/importedPdf.ts` exports the same A4 pages at 300 dpi locally. Surface diagnostics, preserve source if rendering fails, and never replace original MusicXML with a renderer projection. Document source preservation, rendering and dedicated editing as separate capabilities. No PDF recognition provider is selected.
 - `README.md` documents keyboard controls, measure editing semantics, architecture, and known scope limits.
 
 ## Product purpose and confirmed requirements
@@ -23,9 +25,7 @@ The intended workflow is:
 The motivation includes reading music on an iPad while playing. This does not yet
 establish the application platform or require a native iPad app.
 
-These are product goals, not claims that the features already exist. No technology
-stack, storage format, hosting provider, account system or implementation has been
-confirmed. Do not silently turn suggestions in this file into user-approved requirements.
+These product goals do not imply that every feature exists. The confirmed implementation is recorded above; hosting, accounts and a recognition provider remain undecided. Do not silently turn suggestions into approved requirements.
 
 ## First steps in a code repository
 

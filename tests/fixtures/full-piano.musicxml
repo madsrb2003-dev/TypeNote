@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original TypeNote regression study, released under CC0. Not a repertoire excerpt. -->
+<score-partwise version="4.0">
+  <work><work-title>Piano source preservation study</work-title></work>
+  <identification><creator type="composer">TypeNote test fixture</creator><rights>CC0</rights></identification>
+  <defaults><scaling><millimeters>7</millimeters><tenths>40</tenths></scaling></defaults>
+  <part-list><score-part id="P1"><part-name>Piano</part-name><part-abbreviation>Pno.</part-abbreviation></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>12</divisions>
+        <key number="1"><fifths>1</fifths></key>
+        <key number="2"><fifths>0</fifths></key>
+        <key number="3"><fifths>0</fifths></key>
+        <time symbol="common"><beats>4</beats><beat-type>4</beat-type></time>
+        <staves>3</staves>
+        <clef number="1"><sign>G</sign><line>2</line></clef>
+        <clef number="2"><sign>F</sign><line>4</line></clef>
+        <clef number="3"><sign>F</sign><line>4</line></clef>
+      </attributes>
+      <direction placement="above"><direction-type><rehearsal>A</rehearsal></direction-type><staff>1</staff></direction>
+      <direction placement="below"><direction-type><pedal type="start" number="1" line="yes" sign="no"/></direction-type><staff>3</staff></direction>
+      <note id="study-fsharp"><pitch><step>F</step><alter>1</alter><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>2</fingering></technical><slur type="start" number="1"/></notations></note>
+      <note id="study-grace"><grace steal-time-following="15" slash="yes"/><pitch><step>A</step><octave>5</octave></pitch><voice>1</voice><type>16th</type><stem>up</stem><staff>1</staff></note>
+      <note id="study-g"><pitch><step>G</step><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff></note>
+      <direction placement="below"><direction-type><dynamics><mp/></dynamics></direction-type><offset>6</offset><staff>1</staff></direction>
+      <note id="study-a"><pitch><step>A</step><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff></note>
+      <note id="study-g-end"><pitch><step>G</step><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><slur type="stop" number="1"/></notations></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-inner"><pitch><step>E</step><octave>4</octave></pitch><duration>48</duration><voice>2</voice><type>whole</type><staff>1</staff></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-bass"><pitch><step>C</step><octave>3</octave></pitch><duration>48</duration><voice>3</voice><type>whole</type><staff>2</staff></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-third-staff"><pitch><step>C</step><octave>2</octave></pitch><duration>48</duration><voice>4</voice><type>whole</type><staff>3</staff></note>
+    </measure>
+    <measure number="2">
+      <direction placement="above"><direction-type><words>Small notes and clef change</words></direction-type><staff>1</staff></direction>
+      <note id="study-cue"><cue/><pitch><step>C</step><octave>5</octave></pitch><duration>24</duration><voice>1</voice><type>half</type><stem>up</stem><notehead>diamond</notehead><staff>1</staff><notations><ornaments><trill-mark/><accidental-mark placement="above">sharp</accidental-mark><wavy-line type="start" number="1"/><turn/></ornaments></notations></note>
+      <attributes><key number="1"><cancel>1</cancel><fifths>-1</fifths></key><clef number="1"><sign>F</sign><line>4</line></clef></attributes>
+      <direction placement="below"><direction-type><pedal type="change" number="1" line="yes" sign="no"/></direction-type><staff>3</staff></direction>
+      <note id="study-hidden" print-object="no"><pitch><step>A</step><octave>3</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+      <note id="study-stemless"><pitch><step>G</step><octave>3</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><stem>none</stem><staff>1</staff><notations><ornaments><wavy-line type="stop" number="1"/></ornaments></notations></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-bass-rest2"><rest measure="yes"/><duration>48</duration><voice>3</voice><staff>2</staff></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-third-rest2"><rest measure="yes"/><duration>48</duration><voice>4</voice><staff>3</staff></note>
+    </measure>
+    <measure number="3">
+      <print new-system="yes"/>
+      <attributes><time symbol="cut"><beats>2</beats><beat-type>2</beat-type></time><clef number="1"><sign>G</sign><line>2</line></clef></attributes>
+      <barline location="left"><ending number="1" type="start"/></barline>
+      <direction placement="above"><direction-type><words>dolce</words></direction-type><staff>1</staff></direction>
+      <note id="study-mordent"><pitch><step>F</step><octave>5</octave></pitch><duration>24</duration><voice>1</voice><type>half</type><staff>1</staff><notations><ornaments><mordent/><accidental-mark placement="below">flat</accidental-mark></ornaments><articulations><tenuto/></articulations></notations></note>
+      <note id="study-turn"><pitch><step>G</step><octave>5</octave></pitch><duration>24</duration><voice>1</voice><type>half</type><staff>1</staff><notations><ornaments><inverted-turn/></ornaments></notations></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-bass3"><pitch><step>F</step><octave>3</octave></pitch><duration>48</duration><voice>3</voice><type>whole</type><staff>2</staff></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-third3"><pitch><step>F</step><octave>2</octave></pitch><duration>48</duration><voice>4</voice><type>whole</type><staff>3</staff></note>
+    </measure>
+    <measure number="4">
+      <attributes><time symbol="common"><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <direction placement="above"><direction-type><words>Fine</words></direction-type><staff>1</staff><sound fine="yes"/></direction>
+      <note id="study-final-c"><pitch><step>C</step><octave>5</octave></pitch><duration>48</duration><voice>1</voice><type>whole</type><staff>1</staff><notations><fermata/><arpeggiate direction="up"/></notations></note>
+      <note id="study-final-e"><chord/><pitch><step>E</step><octave>5</octave></pitch><duration>48</duration><voice>1</voice><type>whole</type><staff>1</staff><notations><arpeggiate direction="up"/></notations></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-bass4"><pitch><step>C</step><octave>3</octave></pitch><duration>48</duration><voice>3</voice><type>whole</type><staff>2</staff></note>
+      <backup><duration>48</duration></backup>
+      <note id="study-third4"><pitch><step>C</step><octave>2</octave></pitch><duration>48</duration><voice>4</voice><type>whole</type><staff>3</staff></note>
+      <direction placement="below"><direction-type><pedal type="stop" number="1" line="yes" sign="no"/></direction-type><staff>3</staff></direction>
+      <barline location="right"><bar-style>light-heavy</bar-style><ending number="1" type="discontinue"/><repeat direction="backward" times="3"/></barline>
+    </measure>
+  </part>
+</score-partwise>

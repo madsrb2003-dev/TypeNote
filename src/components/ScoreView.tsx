@@ -11,7 +11,8 @@ interface ScoreViewProps {
   onSelect: (selection: Selection) => void;
 }
 
-function PianoSystem({ measures, firstIndex, width, selection, onSelect }: {
+function PianoSystem({ score, measures, firstIndex, width, selection, onSelect }: {
+  score: Score;
   measures: Measure[];
   firstIndex: number;
   width: number;
@@ -21,7 +22,7 @@ function PianoSystem({ measures, firstIndex, width, selection, onSelect }: {
   const drawing = useRef<HTMLDivElement>(null);
   const [targets, setTargets] = useState<HitTarget[]>([]);
   const [drawingError, setDrawingError] = useState(false);
-  const { height } = systemGeometry(measures);
+  const { height } = systemGeometry(measures, score, firstIndex);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +34,7 @@ function PianoSystem({ measures, firstIndex, width, selection, onSelect }: {
         const renderer = new Renderer(drawing.current, Renderer.Backends.SVG);
         renderer.resize(width, height);
         const context = renderer.getContext();
-        const nextTargets = drawSystem(context, measures, firstIndex, width, selection);
+        const nextTargets = drawSystem(context, measures, firstIndex, width, selection, false, score);
         drawing.current.querySelector('svg')?.setAttribute('aria-hidden', 'true');
         setTargets(nextTargets);
         setDrawingError(false);
@@ -44,7 +45,7 @@ function PianoSystem({ measures, firstIndex, width, selection, onSelect }: {
       }
     });
     return () => { cancelled = true; };
-  }, [measures, firstIndex, width, height, selection]);
+  }, [score, measures, firstIndex, width, height, selection]);
 
   return <div className="score-system-scroll">
     {drawingError && <p role="alert" className="score-render-error">The notation could not be drawn. Your score is still available to save.</p>}
@@ -53,7 +54,7 @@ function PianoSystem({ measures, firstIndex, width, selection, onSelect }: {
       {targets.map(target => <button
         key={target.key}
         type="button"
-        className={`score-hit ${target.key.endsWith('-gap') ? 'score-gap' : 'score-event'}${
+        className={`score-hit ${target.selection.pitchIndex !== undefined ? 'score-pitch' : target.key.endsWith('-gap') ? 'score-gap' : 'score-event'}${
           isSelected(selection, target.selection) && !target.placeholder ? ' is-selected' : ''}`}
         style={{ left: target.left, top: target.top, width: target.width, height: target.height }}
         aria-label={target.label}
@@ -74,13 +75,16 @@ export function ScoreView({ score, selection, onSelect }: ScoreViewProps) {
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
-  const minimumBarWidth = Math.max(290, ...score.measures.map((measure, index) => minimumMeasureWidth(measure, true, index === 0)));
+  const minimumBarWidth = Math.max(290, ...score.measures.map((measure, index) => minimumMeasureWidth(measure, true, index === 0, score, index)));
   const barsPerSystem = availableWidth >= Math.max(740, minimumBarWidth * 2 + 45) ? 2 : 1;
   const width = Math.max(availableWidth, minimumBarWidth * barsPerSystem + 45);
   const systems = [];
-  for (let index = 0; index < score.measures.length; index += barsPerSystem) {
-    systems.push(<PianoSystem key={index} measures={score.measures.slice(index, index + barsPerSystem)}
+  for (let index = 0; index < score.measures.length;) {
+    const next = score.measures[index + 1];
+    const count = barsPerSystem === 2 && next && !next.systemBreak && !next.pageBreak ? 2 : 1;
+    systems.push(<PianoSystem key={index} score={score} measures={score.measures.slice(index, index + count)}
       firstIndex={index} width={width} selection={selection} onSelect={onSelect} />);
+    index += count;
   }
   return <div ref={container} className="score-view" aria-label="Piano score">{systems}</div>;
 }

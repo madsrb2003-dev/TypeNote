@@ -8,6 +8,9 @@
 .score-hit:focus-visible { outline: 2px solid #28634f; outline-offset: 2px; background: #28634f14; }
 .score-event { z-index: 2; }
 .score-event.is-selected { background: #28634f13; box-shadow: 0 0 0 1px #28634f45; }
+.score-pitch { z-index: 4; border-radius: 50%; }
+button.score-pitch.is-selected { background: #39baf538; box-shadow: 0 0 0 2px #187aab, 0 0 7px 2px #39baf55c; }
+button.score-pitch:hover:not(:disabled) { background: #39baf525; }
 /* Keep notation visible beneath hit targets even when shared button styles apply. */
 button.score-hit:hover:not(:disabled), button.score-hit[aria-pressed='true'] { background: #28634f14; border-color: transparent; }
 .score-gap { z-index: 3; }

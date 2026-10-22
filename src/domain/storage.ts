@@ -5,7 +5,9 @@ export { validateScore } from './validation';
 
 export function serializeScore(score: Score): string {
   // Compact JSON keeps even the largest supported score within the file limit.
-  return JSON.stringify(validateScore(score)) + '\n';
+  const text = JSON.stringify(validateScore(score)) + '\n';
+  if (new TextEncoder().encode(text).byteLength > MAX_SCORE_FILE_BYTES) throw new Error('This score exceeds the 10 MB file limit.');
+  return text;
 }
 
 export function parseScore(text: string): Score {

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original TypeNote regression study, released under CC0. -->
+<score-partwise version="4.0">
+  <work><work-title>Nested and bar-spanning rhythm study</work-title></work>
+  <identification><creator type="composer">TypeNote test fixture</creator><rights>CC0</rights></identification>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>18</divisions><key><fifths>0</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>
+      <note id="nested-1"><pitch><step>C</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>eighth</type><time-modification><actual-notes>9</actual-notes><normal-notes>4</normal-notes></time-modification><stem>up</stem><staff>1</staff><beam number="1">begin</beam><notations><tuplet type="start" number="1" bracket="yes" placement="above"><tuplet-actual><tuplet-number>3</tuplet-number><tuplet-type>quarter</tuplet-type></tuplet-actual><tuplet-normal><tuplet-number>2</tuplet-number><tuplet-type>quarter</tuplet-type></tuplet-normal></tuplet><tuplet type="start" number="2" bracket="yes" placement="above"><tuplet-actual><tuplet-number>3</tuplet-number><tuplet-type>eighth</tuplet-type></tuplet-actual><tuplet-normal><tuplet-number>2</tuplet-number><tuplet-type>eighth</tuplet-type></tuplet-normal></tuplet></notations></note>
+      <note id="nested-2"><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>eighth</type><time-modification><actual-notes>9</actual-notes><normal-notes>4</normal-notes></time-modification><stem>up</stem><staff>1</staff><beam number="1">continue</beam></note>
+      <note id="nested-3"><pitch><step>E</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>eighth</type><time-modification><actual-notes>9</actual-notes><normal-notes>4</normal-notes></time-modification><stem>up</stem><staff>1</staff><beam number="1">end</beam><notations><tuplet type="stop" number="2"/></notations></note>
+      <note id="nested-4"><pitch><step>F</step><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff></note>
+      <note id="nested-5"><pitch><step>G</step><octave>5</octave></pitch><duration>12</duration><voice>1</voice><type>quarter</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff><notations><tuplet type="stop" number="1"/></notations></note>
+      <note id="nested-6"><pitch><step>C</step><octave>5</octave></pitch><duration>18</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+      <backup><duration>54</duration></backup>
+      <note id="nested-bass1"><pitch><step>C</step><octave>3</octave></pitch><duration>54</duration><voice>2</voice><type>half</type><dot/><staff>2</staff></note>
+    </measure>
+    <measure number="2">
+      <note id="span-rest"><rest/><duration>18</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+      <note id="span-1"><pitch><step>C</step><octave>5</octave></pitch><duration>24</duration><voice>1</voice><type>half</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff><notations><tuplet type="start" number="1" bracket="yes" placement="above"/></notations></note>
+      <note id="span-2a"><pitch><step>D</step><octave>5</octave></pitch><duration>12</duration><tie type="start"/><voice>1</voice><type>quarter</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff><notations><tied type="start"/></notations></note>
+      <backup><duration>54</duration></backup>
+      <note id="nested-bass2"><pitch><step>F</step><octave>3</octave></pitch><duration>54</duration><voice>2</voice><type>half</type><dot/><staff>2</staff></note>
+    </measure>
+    <measure number="3">
+      <note id="span-2b"><pitch><step>D</step><octave>5</octave></pitch><duration>12</duration><tie type="stop"/><voice>1</voice><type>quarter</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff><notations><tied type="stop"/></notations></note>
+      <note id="span-3"><pitch><step>E</step><octave>5</octave></pitch><duration>24</duration><voice>1</voice><type>half</type><time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification><staff>1</staff><notations><tuplet type="stop" number="1"/></notations></note>
+      <note id="span-last"><pitch><step>C</step><octave>5</octave></pitch><duration>18</duration><voice>1</voice><type>quarter</type><staff>1</staff><notations><fermata/></notations></note>
+      <backup><duration>54</duration></backup>
+      <note id="nested-bass3"><pitch><step>C</step><octave>3</octave></pitch><duration>54</duration><voice>2</voice><type>half</type><dot/><staff>2</staff></note>
+      <barline location="right"><bar-style>light-heavy</bar-style></barline>
+    </measure>
+  </part>
+</score-partwise>

@@ -31,22 +31,22 @@ export async function createScorePdf(input: Score, options: ExportOptions = {}):
   const systems = [];
   for (let index = 0; index < score.measures.length;) {
     check();
-    const minimum = minimumMeasureWidth(score.measures[index], true, index === 0);
+    const minimum = minimumMeasureWidth(score.measures[index], true, index === 0, score, index);
     let count = 1;
     let width = Math.max(850, minimum + 45);
     if (width > 1120) throw new Error(`Measure ${index + 1} is too dense for a readable A4 page. Reduce its notation density before exporting.`);
-    if (index + 1 < score.measures.length) {
-      const next = minimumMeasureWidth(score.measures[index + 1], false, false);
+    if (index + 1 < score.measures.length && !score.measures[index + 1].systemBreak && !score.measures[index + 1].pageBreak) {
+      const next = minimumMeasureWidth(score.measures[index + 1], false, false, score, index + 1);
       if (Math.max(minimum, next) * 2 + 45 <= width) count = 2;
     }
     const measures = score.measures.slice(index, index + count);
-    systems.push({ firstIndex: index, measures, width, height: systemGeometry(measures).height });
+    systems.push({ firstIndex: index, measures, width, height: systemGeometry(measures, score, index).height, pageBreak: measures[0].pageBreak });
     index += count;
     await yieldToBrowser();
   }
   const placements = paginate(systems);
   const pdf = await PDFDocument.create();
-  pdf.setTitle(score.title || 'Untitled score'); pdf.setCreator('TypeNote'); pdf.setProducer('TypeNote');
+  pdf.setTitle(score.title || 'Untitled score'); if (score.composer) pdf.setAuthor(score.composer); pdf.setCreator('TypeNote'); pdf.setProducer('TypeNote');
   const pages = Array.from({ length: Math.max(1, ...placements.map(p => p.page + 1)) }, () => pdf.addPage([A4.width, A4.height]));
   // Rasterize title too, so Unicode titles do not rely on PDF's limited standard fonts.
   const title = canvasFor(CONTENT_WIDTH, 70, 300 / 72);
@@ -66,7 +66,7 @@ export async function createScorePdf(input: Score, options: ExportOptions = {}):
     fontSize--;
   } while (true);
   lines.forEach((text, index) => title.context.fillText(text, CONTENT_WIDTH / 2, 20 + index * (fontSize + 3), CONTENT_WIDTH - 20));
-  title.context.font = '9px Arial'; title.context.fillText('PIANO · 4/4', CONTENT_WIDTH / 2, 66);
+  title.context.font = '9px Arial'; title.context.fillText(score.composer ? `Piano · ${score.composer}` : 'Piano', CONTENT_WIDTH / 2, 66, CONTENT_WIDTH - 20);
   const titleImage = await pdf.embedPng(await png(title.canvas));
   pages[0].drawImage(titleImage, { x: MARGIN, y: A4.height - MARGIN - 70, width: CONTENT_WIDTH, height: 70 });
   await titleImage.embed();
@@ -75,7 +75,7 @@ export async function createScorePdf(input: Score, options: ExportOptions = {}):
     check();
     const system = systems[placement.index];
     const { canvas, context } = canvasFor(system.width, system.height, placement.scale * 300 / 72);
-    drawSystem(new CanvasContext(context), system.measures, system.firstIndex, system.width, undefined, true);
+    drawSystem(new CanvasContext(context), system.measures, system.firstIndex, system.width, undefined, true, score);
     const image = await pdf.embedPng(await png(canvas));
     pages[placement.page].drawImage(image, { x: MARGIN, y: A4.height - placement.top - placement.height, width: CONTENT_WIDTH, height: placement.height });
     await image.embed();

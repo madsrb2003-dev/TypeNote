@@ -1,6 +1,9 @@
-import { MEASURE_TICKS } from './types';
-import type { Duration, Measure, Pitch, Position, Score, ScoreEvent, Step } from './types';
+import type { Alteration, Duration, EventNotation, Measure, MeasureSettings, Pitch, Position, Score, ScoreEvent, ScoreMark, Step } from './types';
 import { validateScore } from './validation';
+import { getEvents } from './settings';
+import { compareFractions, eventFraction, measureCapacity, numberFraction, sumFractions } from './timing';
+export { getEvents, effectiveSettings, resolvePitch, keySignatureFor } from './settings';
+export { usedTicks, measureCapacity } from './timing';
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -11,14 +14,14 @@ function emptyMeasure(): Measure {
 }
 
 export function createScore(): Score {
-  return { version: 2, title: 'Untitled score', measures: Array.from({ length: 4 }, emptyMeasure) };
+  return { version: 3, title: 'Untitled score', measures: Array.from({ length: 4 }, emptyMeasure) };
 }
 
-export function pitchFromKey(key: string, octave: number, alter: -1 | 0 | 1 = 0): Pitch | null {
+export function pitchFromKey(key: string, octave: number, alter: Alteration = 0): Pitch | null {
   const letter = key.toUpperCase();
   if (!['C', 'D', 'E', 'F', 'G', 'A', 'H', 'B'].includes(letter)) return null;
   if (!Number.isInteger(octave) || octave < 0 || octave > 8) throw new Error('Choose an octave from 0 to 8.');
-  if (![-1, 0, 1].includes(alter)) throw new Error('Choose flat, natural, or sharp.');
+  if (![-2, -1, 0, 1, 2].includes(alter)) throw new Error('Choose an accidental from double flat through double sharp.');
   return {
     step: letter === 'H' || letter === 'B' ? 'B' : letter as Step,
     alter: letter === 'B' ? -1 : alter,
@@ -28,12 +31,8 @@ export function pitchFromKey(key: string, octave: number, alter: -1 | 0 | 1 = 0)
 
 export function pitchLabel(pitch: Pitch): string {
   const letter = pitch.step === 'B' ? (pitch.alter === -1 ? 'B' : 'H') : pitch.step;
-  const accidental = pitch.step === 'B' && pitch.alter === -1 ? '' : pitch.alter === -1 ? '♭' : pitch.alter === 1 ? '♯' : '';
+  const accidental = pitch.step === 'B' && pitch.alter === -1 ? '' : pitch.alter === -1 ? '♭' : pitch.alter === 1 ? '♯' : pitch.alter === -2 ? '𝄫' : pitch.alter === 2 ? '𝄪' : '';
   return `${letter}${accidental}${pitch.octave}`;
-}
-
-export function usedTicks(events: ScoreEvent[]): number {
-  return events.reduce((total, event) => total + event.duration, 0);
 }
 
 function eventsAt(score: Score, position: Position, allowEnd: boolean): ScoreEvent[] {
@@ -41,21 +40,44 @@ function eventsAt(score: Score, position: Position, allowEnd: boolean): ScoreEve
     throw new Error('Choose an existing measure.');
   }
   if (position.staff !== 'treble' && position.staff !== 'bass') throw new Error('Choose the treble or bass staff.');
-  const events = score.measures[position.measureIndex][position.staff];
+  const events = getEvents(score.measures[position.measureIndex], position.staff, position.voice);
   if (!Number.isInteger(position.index) || position.index < 0 || position.index > events.length - (allowEnd ? 0 : 1)) {
     throw new Error(allowEnd ? 'Choose a valid insertion position.' : 'Select an existing note or rest.');
   }
   return events;
 }
 
+function removeDanglingMarks(score: Score): Score {
+  if (!score.marks) return score;
+  const valid = (anchor: ScoreMark['start'], needsNote: boolean) => {
+    const measure = score.measures.find((item) => item.id === anchor.measureId);
+    if (!measure) return false;
+    if (!anchor.eventId) return anchor.pitchIndex === undefined;
+    const event = Array.from({ length: 4 }, (_, voice) => getEvents(measure, anchor.staff, voice)).flat().find((item) => item.id === anchor.eventId);
+    return !!event && (!needsNote || event.kind === 'note') && (anchor.pitchIndex === undefined || (event.kind === 'note' && anchor.pitchIndex < event.pitches.length));
+  };
+  return { ...score, marks: score.marks.filter((mark) => {
+    const needsNote = ['tie', 'slur', 'glissando', 'tremolo'].includes(mark.kind);
+    return valid(mark.start, needsNote) && (!mark.end || valid(mark.end, needsNote));
+  }) };
+}
+function finishEdit(score: Score): Score {
+  return validateScore(score);
+}
 function replaceEvents(score: Score, position: Position, events: ScoreEvent[]): Score {
-  if (usedTicks(events) > MEASURE_TICKS) {
+  if (compareFractions(sumFractions(events.map(eventFraction)), numberFraction(measureCapacity(score, position.measureIndex))) > 0) {
     throw new Error('This measure is full: choose a shorter duration or another measure.');
   }
-  return validateScore({
-    ...score,
-    measures: score.measures.map((measure, index) => index === position.measureIndex ? { ...measure, [position.staff]: events } : measure),
+  const voice = position.voice ?? 0;
+  const measures = score.measures.map((measure, index) => {
+    if (index !== position.measureIndex) return measure;
+    if (voice === 0) return { ...measure, [position.staff]: events };
+    const voices = [...(measure.extraVoices?.[position.staff] ?? [])];
+    while (voices.length < voice) voices.push([]);
+    voices[voice - 1] = events;
+    return { ...measure, extraVoices: { ...measure.extraVoices, [position.staff]: voices } };
   });
+  return finishEdit(removeDanglingMarks({ ...score, measures }));
 }
 
 export function insertEvent(score: Score, position: Position, event: ScoreEvent): Score {
@@ -105,7 +127,9 @@ export function removeChordPitch(score: Score, position: Position, pitchIndex: n
   const event = chordAt(score, position);
   checkPitchIndex(event, pitchIndex);
   if (event.pitches.length === 1) return deleteEvent(score, position);
-  return updateEvent(score, position, { ...event, pitches: event.pitches.filter((_, index) => index !== pitchIndex) });
+  const adjust = (anchor: ScoreMark['start']) => anchor.eventId === event.id && anchor.pitchIndex !== undefined && anchor.pitchIndex > pitchIndex ? { ...anchor, pitchIndex: anchor.pitchIndex - 1 } : anchor;
+  const marks = score.marks?.filter((mark) => ![mark.start, mark.end].some((anchor) => anchor?.eventId === event.id && anchor.pitchIndex === pitchIndex)).map((mark) => ({ ...mark, start: adjust(mark.start), ...(mark.end ? { end: adjust(mark.end) } : {}) }));
+  return updateEvent({ ...score, ...(marks ? { marks } : {}) }, position, { ...event, pitches: event.pitches.filter((_, index) => index !== pitchIndex) });
 }
 
 export function appendMeasure(score: Score): Score {
@@ -129,4 +153,35 @@ export function createDemoScore(): Score {
   score.measures[3].treble = [note('C', 5, 8), { id: newId(), kind: 'rest', duration: 8 }];
   score.measures[3].bass = [note('C', 3, 16)];
   return validateScore(score);
+}
+
+/** Undefined removes an optional setting, restoring inheritance. */
+export function setMeasureSettings(score: Score, index: number, patch: MeasureSettings): Score {
+  if (!Number.isInteger(index) || index < 0 || index >= score.measures.length) throw new Error('Choose an existing measure.');
+  const measure = { ...score.measures[index], ...patch };
+  for (const key of Object.keys(patch) as (keyof MeasureSettings)[]) if (patch[key] === undefined) delete measure[key];
+  const changed = { ...score, measures: score.measures.map((item, i) => i === index ? measure : item) };
+  // Whole-bar rests follow meter inheritance and irregular/pickup bar lengths.
+  changed.measures = changed.measures.map((bar, barIndex) => {
+    const refresh = (events: ScoreEvent[]) => events.map((event) => event.measureRest === undefined ? event : { ...event, measureRest: measureCapacity(changed, barIndex) });
+    return { ...bar, treble: refresh(bar.treble), bass: refresh(bar.bass), ...(bar.extraVoices ? {
+      extraVoices: Object.fromEntries(Object.entries(bar.extraVoices).map(([staff, voices]) => [staff, voices!.map(refresh)])),
+    } : {}) };
+  });
+  return finishEdit(changed);
+}
+export function patchEvent(score: Score, position: Position, patch: Partial<EventNotation>): Score {
+  const event = { ...eventsAt(score, position, false)[position.index], ...patch };
+  for (const key of Object.keys(patch) as (keyof EventNotation)[]) if (patch[key] === undefined) delete event[key];
+  return updateEvent(score, position, event);
+}
+export function setScoreMark(score: Score, mark: ScoreMark): Score {
+  const marks = score.marks ?? [];
+  return validateScore({ ...score, marks: marks.some((item) => item.id === mark.id) ? marks.map((item) => item.id === mark.id ? mark : item) : [...marks, mark] });
+}
+export function deleteScoreMark(score: Score, id: string): Score {
+  return validateScore({ ...score, marks: (score.marks ?? []).filter((mark) => mark.id !== id) });
+}
+export function setComposer(score: Score, composer: string): Score {
+  return validateScore({ ...score, composer });
 }

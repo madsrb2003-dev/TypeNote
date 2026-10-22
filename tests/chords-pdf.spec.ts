@@ -23,7 +23,7 @@ test('build and edit chords, undo, and reopen their pitches', async ({ page }) =
   const path = await file.path();
   const contents = await readFile(path!);
   const score = JSON.parse(contents.toString());
-  expect(score.version).toBe(2);
+  expect(score.version).toBe(3);
   expect(score.measures[0].treble[0].duration).toBe(8);
   expect(score.measures[0].treble[0].pitches).toHaveLength(3);
   await page.getByRole('button', { name: 'New score', exact: true }).click();

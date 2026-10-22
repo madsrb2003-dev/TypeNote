@@ -9,7 +9,7 @@ describe('local score files', () => {
     const first = score.measures[0].treble[0];
     if (first.kind === 'note') first.pitches[0].alter = -1;
     expect(parseScore(serializeScore(score))).toEqual(score);
-    expect(parseScore(serializeScore(createScore()))).toEqual(expect.objectContaining({ version: 2 }));
+    expect(parseScore(serializeScore(createScore()))).toEqual(expect.objectContaining({ version: 3 }));
   });
 
   it('rejects invalid JSON, unsupported version and unexpected fields', () => {
@@ -62,7 +62,7 @@ describe('local score files', () => {
 
   it.each([
     [{ step: 'H', alter: 0, octave: 4 }, /step/],
-    [{ step: 'C', alter: 2, octave: 4 }, /alteration/],
+    [{ step: 'C', alter: 3, octave: 4 }, /alteration/],
     [{ step: 'C', alter: 0, octave: -1 }, /octave/],
     [{ step: 'C', alter: 0, octave: 4.5 }, /octave/],
     [{ step: 'C', alter: 0, octave: 4, frequency: 261 }, /unsupported fields/],
