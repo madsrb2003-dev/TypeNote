@@ -5,6 +5,7 @@ import json
 import re
 import signal
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'omr'))
@@ -12,6 +13,7 @@ from adapter import AudiverisAdapter, run_process
 from musicxml import inspect_musicxml, musicxml_bytes
 from run import pdf_metadata, write_json
 from structure import staff_diagnostics
+from page_text import preserve_page_text
 
 MAX_PAGES = 200
 
@@ -86,6 +88,7 @@ def provider_diagnostics(log: Path) -> list[str]:
 
 
 def execute(job: Path, executable: Path, pdfinfo: str, pages: str, timeout: float = 600) -> dict:
+    started = time.monotonic()
     result = json.loads((job / 'result.json').read_text())
     raw = job / 'raw'
     raw.mkdir(exist_ok=True)
@@ -105,6 +108,20 @@ def execute(job: Path, executable: Path, pdfinfo: str, pages: str, timeout: floa
         command = AudiverisAdapter(executable, pdf_resolution=400).command(job / 'original.pdf', raw, sheets)
         process = run_process(command, job / 'recognition.log', timeout)
         result['outputs'], diagnostics = collect(raw, job)
+        if process.status == 'completed' and process.exit_code == 0 and any(raw.glob('*.omr')):
+            for output in result['outputs']:
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 1 or (job / 'cancel.requested').exists():
+                    break
+                target = job / output['file']
+                original = target.read_bytes()
+                enriched, text_diagnostics = preserve_page_text(original, raw, job / 'original.pdf', timeout=remaining)
+                if enriched != original:
+                    provider = job / 'provider-musicxml'
+                    provider.mkdir(exist_ok=True)
+                    (provider / target.name).write_bytes(original)
+                    target.write_bytes(enriched)
+                diagnostics.extend(text_diagnostics)
         result['diagnostics'].extend(diagnostics + staff_diagnostics(raw) + provider_diagnostics(job / 'recognition.log'))
         result['diagnostics'].append('Recognition can omit or misread notation. Compare the result with the original PDF before using it.')
         if process.status == 'cancelled' or (job / 'cancel.requested').exists():

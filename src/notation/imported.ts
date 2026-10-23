@@ -1,4 +1,6 @@
 import type { MusicXmlDocument, RenderedMusicDocument, RenderedMusicPage, RenderMusicOptions } from '../documents/types';
+import { prepareMusicXmlForRendering } from './importedCompatibility';
+import { prepareImportedLayout, applyImportedLayout } from './importedLayout';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const safeElements = new Set(['svg', 'g', 'defs', 'path', 'use', 'text', 'tspan', 'rect', 'line', 'polyline', 'polygon', 'circle', 'ellipse', 'style', 'title', 'desc', 'clipPath', 'image']);
@@ -51,6 +53,8 @@ export function renderImportedScore(document: MusicXmlDocument, options: RenderM
   if (document.kind !== 'musicxml' || !document.xml.trim()) return Promise.reject(new Error('Open a MusicXML document before rendering it.'));
   if (new TextEncoder().encode(document.xml).length > 10 * 1024 * 1024) return Promise.reject(new Error('MusicXML documents must be smaller than 10 MB.'));
   return new Promise((resolve, reject) => {
+    const input = prepareMusicXmlForRendering(document.xml);
+    const layout = prepareImportedLayout(input.xml);
     let worker: Worker;
     try { worker = new Worker(new URL('./imported.worker.ts', import.meta.url), { type: 'module', name: 'typenote-musicxml' }); }
     catch { reject(new Error('Your browser could not start the local notation worker. Reload the editor and try again.')); return; }
@@ -67,12 +71,13 @@ export function renderImportedScore(document: MusicXmlDocument, options: RenderM
       if (data.type === 'error') { fail(new Error([data.message, ...data.diagnostics].join('\n'))); return; }
       try {
         const prepared = data.result.pages.map(prepareImportedPage);
-        const diagnostics = [...new Set([...data.result.diagnostics, ...prepared.flatMap(item => item.diagnostics)])];
-        settled = true; cleanup(); resolve({ pages: prepared.map(item => item.page), diagnostics });
+        const diagnostics = [...new Set([...input.diagnostics, ...layout.diagnostics, ...data.result.diagnostics, ...prepared.flatMap(item => item.diagnostics)])];
+        const pages = prepared.map((item, index) => applyImportedLayout(item.page, index, layout));
+        settled = true; cleanup(); resolve({ pages, diagnostics });
       } catch (error) { fail(error); }
     };
     // Each request owns its worker. Canceling an obsolete render terminates its
     // WASM computation, and its late messages can never resolve a newer request.
-    worker.postMessage({ xml: document.xml });
+    worker.postMessage({ xml: layout.xml, positionedCredits: layout.positionedCredits, fillPage: layout.fillPage });
   });
 }

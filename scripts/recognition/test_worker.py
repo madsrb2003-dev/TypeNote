@@ -58,6 +58,22 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(result['status'], 'failed')
         self.assertEqual(len(result['outputs']), 2)
 
+    def test_page_text_enrichment_retains_original_provider_xml(self):
+        def with_project(*args):
+            process = self.provider(*args)
+            (self.job / 'raw' / 'original.omr').write_bytes(b'retained-provider-project')
+            return process
+        def enrich(data, *_args, **_kwargs):
+            return data.replace(b'<part-list/>', b'<credit><credit-words>Source text</credit-words></credit><part-list/>'), ['Preserved source text']
+        with patch('worker.pdf_metadata', return_value={'pages': 1}), patch('worker.run_process', side_effect=with_project), \
+                patch('worker.preserve_page_text', side_effect=enrich) as preserve:
+            result = execute(self.job, Path('/provider'), '/pdfinfo', '')
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(preserve.call_count, 2)
+        self.assertEqual((self.job / 'provider-musicxml' / '0.musicxml').read_bytes(), SCORE)
+        self.assertIn(b'Source text', (self.job / result['outputs'][0]['file']).read_bytes())
+        self.assertEqual(result['outputs'][0]['noteCount'], 1)
+
     def test_invalid_encrypted_large_and_invalid_selection_do_not_run_provider(self):
         for metadata, error, pages in ((None, 'Encrypted/password-protected PDFs are unsupported', ''),
                                        (None, 'Invalid PDF', ''), ({'pages': 201}, None, ''),

@@ -9,6 +9,7 @@ import './imported.css';
 import { PdfImport } from './PdfImport';
 import { recognitionUrl } from '../documents/recognition';
 import type { RecognitionSource } from '../documents/recognition';
+import { hasOriginalPageText, removeOriginalPageText } from '../notation/importedLayout';
 
 function download(contents: BlobPart, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -70,6 +71,7 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
   const [past, setPast] = useState<MusicXmlDocument[]>([]);
   const [future, setFuture] = useState<MusicXmlDocument[]>([]);
   const info = useMemo(() => inspectMusicXml(doc), [doc]);
+  const originalPageText = useMemo(() => hasOriginalPageText(doc.xml), [doc.xml]);
   const [selectedId, setSelectedId] = useState(() => info.notes.find(n => n.kind === 'note')?.id ?? info.notes[0]?.id ?? '');
   const selected = info.notes.find(n => n.id === selectedId);
   const [rendered, setRendered] = useState<RenderedMusicDocument | null>(null);
@@ -190,9 +192,10 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
     <main><div className="workspace-heading"><div><div className="eyebrow">IMPORTED SCORE</div><h1>{info.title || 'Piano score'}</h1><p>Correct notes while retaining the complete score.</p></div><span className="local-badge"><span />Files stay on your device</span></div>
       <section className="editor imported-editor" ref={editorRef} tabIndex={0} aria-label="Imported score editor" onKeyDown={onKeyDown}>
         {recognitionSource && <div className="recognition-source"><p>{recognitionSource.partial ? 'Partial PDF recognition' : 'Recognized from PDF'}: <strong>{recognitionSource.filename}</strong>. Review notes, rhythm and markings against the original. Save score downloads editable .typenote.json; the original PDF is kept separately on this computer.</p><a href={recognitionUrl(recognitionSource.jobId, 'original')} target="_blank" rel="noreferrer">View original PDF</a><a href={recognitionUrl(recognitionSource.jobId, 'log')} download>Recognition log</a>{recognitionSource.diagnostics.length > 0 && <details><summary>Recognition diagnostics</summary><ul>{recognitionSource.diagnostics.map((line, index) => <li key={index}>{line}</li>)}</ul></details>}</div>}
-        <div className="document-bar"><div className="document-name"><input aria-label="Score title" value={info.title} onChange={e => attempt(() => commit(editImportedMetadata(doc, { title: e.target.value })))} /><span className={`save-state ${dirty ? 'unsaved' : ''}`}>{dirty ? 'Unsaved changes' : 'No unsaved changes'}</span></div><div className="history-actions"><button aria-label="Undo" disabled={!past.length} onClick={undo}>↶</button><button aria-label="Redo" disabled={!future.length} onClick={redo}>↷</button><button aria-expanded={guide} onClick={() => setGuide(!guide)}>Keyboard guide</button></div></div>
+        {originalPageText && <div className="imported-notices"><p>Original page text is preserved as images; the notes remain editable. Use editable page text to change titles and credits.</p><button onClick={() => attempt(() => commit(openMusicXml(removeOriginalPageText(doc.xml), doc.filename)))}>Use editable page text</button></div>}
+        <div className="document-bar"><div className="document-name"><input aria-label="Score title" disabled={originalPageText} value={info.title} onChange={e => attempt(() => commit(editImportedMetadata(doc, { title: e.target.value })))} /><span className={`save-state ${dirty ? 'unsaved' : ''}`}>{dirty ? 'Unsaved changes' : 'No unsaved changes'}</span></div><div className="history-actions"><button aria-label="Undo" disabled={!past.length} onClick={undo}>↶</button><button aria-label="Redo" disabled={!future.length} onClick={redo}>↷</button><button aria-expanded={guide} onClick={() => setGuide(!guide)}>Keyboard guide</button></div></div>
         <div className="imported-controls">
-          <label>Composer<input aria-label="Composer" value={info.composer} onChange={e => attempt(() => commit(editImportedMetadata(doc, { composer: e.target.value })))} /></label>
+          <label>Composer<input aria-label="Composer" disabled={originalPageText} value={info.composer} onChange={e => attempt(() => commit(editImportedMetadata(doc, { composer: e.target.value })))} /></label>
           <label className="imported-note-picker">Selected note<select aria-label="Selected imported note" value={selected ? selectedId : ''} onChange={e => select(e.target.value)}><option value="" disabled>Choose a note</option>{info.notes.map(n => <option key={n.id} value={n.id}>{noteLabel(n)}</option>)}</select></label>
           {editablePitch && <><label>Pitch<select aria-label="Pitch step" value={selected.step} onChange={e => edit({ step: e.target.value as Step, accidental: 'auto' })}>{['C','D','E','F','G','A','B'].map(step => <option key={step} value={step}>{step === 'B' ? 'H' : step}</option>)}</select></label><label>Octave<select aria-label="Octave" value={selected.octave} onChange={e => edit({ octave: Number(e.target.value) })}>{Array.from({ length: 10 }, (_, i) => <option key={i}>{i}</option>)}</select></label>
             <div><span className="tool-label">ACCIDENTAL</span><div className="imported-accidentals"><button aria-label="Follow signature" onClick={() => edit({ accidental: 'auto' })}>Auto</button>{([-2,-1,0,1,2] as Alteration[]).map((alter, i) => <button key={alter} aria-label={['Double flat','Flat','Natural','Sharp','Double sharp'][i]} onClick={() => edit({ alter, accidental: 'explicit' })}>{['𝄫','♭','♮','♯','𝄪'][i]}</button>)}</div></div>

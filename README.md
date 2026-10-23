@@ -33,6 +33,10 @@ See [notation coverage and limits](NOTATION.md) for supported forms and verifica
 
 Recognition can lose notes, rhythm, voices and markings. Compare the result with **View original PDF** and review recognition/engraving diagnostics. If recognition creates several documents, choose which result to open; **Recognition results** lets you return to the other outputs. Failed/cancelled jobs retain their originals and provider files; any readable partial results are clearly labelled and open only when selected. An unsuccessful import preserves the current score.
 
+Recognized system and page breaks are used for preview and PDF export. Successful new imports also preserve safely separated original headers, footers and unrecognized opening directions as embedded images, including their lettering and paper background. This optional local step requires Poppler `pdftoppm`; if it cannot run, the recognized score still opens with a diagnostic. Text overlapping music, missed footer regions and other recognition errors can remain. Older results need importing again to recover missing original lettering.
+
+When original page text is present, title/composer controls are locked because changing metadata cannot change lettering inside an image. **Use editable page text** removes these images and enables the text controls; Undo restores them. Notes remain editable in either mode. The images travel with saved MusicXML and TypeNote JSON; they are not an embedded copy of the whole PDF. See the [page-layout review](docs/imported-page-layout.md) for verification and limits.
+
 PDF import works through the local server started by `npm run dev` or `npm run preview`. It requires Python 3, Poppler `pdfinfo`, and a local Audiveris executable with OCR language data. This workspace has its evaluated runtime configured in ignored `.typenote-tools/`. On another computer, install those tools and set `TYPENOTE_AUDIVERIS` to the Audiveris executable before starting TypeNote, for example on macOS:
 
 ```sh
@@ -42,6 +46,8 @@ TYPENOTE_AUDIVERIS='/Applications/Audiveris.app/Contents/MacOS/Audiveris' npm ru
 The app also discovers `.typenote-tools/audiveris` or `audiveris` on PATH; `TYPENOTE_PYTHON` can select a Python executable. Missing tools produce setup feedback. No automatic downloads, paid service, or remote recognition is used. A static deployment of `dist/` alone cannot run the local recognition process. See [local recognition setup and API](scripts/recognition/README.md).
 
 Accepted PDFs and recognition files are retained under ignored `.typenote-imports/<job-id>/`, including `original.pdf`, complete MusicXML, `.omr` projects, logs and job status. This folder is blocked from ordinary static-file serving; the local import API provides the original and result downloads. Limits: 100 MiB/PDF, 200 source pages, one recognition job at a time, ten minutes/job. Encrypted, unreadable or invalid PDFs are rejected. Source files are kept until you remove the relevant local job folder; TypeNote JSON contains the editable XML, **not the original PDF or a recognition project bundle**. Recognition history/source links are not restored from saved JSON.
+
+When page-text images are added, the original extracted provider XML is also retained in `provider-musicxml/`. Raw provider projects and compressed XML remain unchanged. Image enrichment has its own time and size limits and stays within the editable file limit.
 
 **Open MusicXML** opens an uncompressed `.musicxml` or `.xml` score-partwise document locally. The complete XML is the editable source, rather than a conversion into the smaller native score model. Unknown notation and layout attributes are retained through targeted edits and saving. XML formatting may change and selectable elements receive stable IDs; this is structural preservation, not a byte-for-byte archive. Keep the original file as well.
 
@@ -93,7 +99,7 @@ Use **Marks & spans** for dynamics and expression. Select a note and add a singl
 
 Native-score PDFs have approximately 15 mm margins, a title, page numbers, and automatic system/page breaks. Each grand-staff system stays together. Incomplete measure time is printed as black rests; empty trailing measures are retained. PDF export uses 300 dpi notation images rather than vector notation or selectable musical text. Unusually dense measures that cannot fit legibly produce an error instead of being clipped. Notation and title rendering reuse the browser's locally available fonts; music fonts are bundled.
 
-Native editable files use **version 3**; imported MusicXML documents use **version 4**, as described above. The editor validates and migrates original version-1 single-note and version-2 chord files on opening, preserving pitches, durations, IDs, title, and measures. The older first-milestone application cannot open version-3 files. Files may be up to 10 MB, enough for the supported maximum of 200 measures with 10-pitch chords. Keep the editable TypeNote file as well as your PDF. Imported-score PDFs use the same Verovio A4 pages as the preview, including their approximately 15 mm margins, rasterized at 300 dpi; export is cancellable and stays local.
+Native editable files use **version 3**; imported MusicXML documents use **version 4**, as described above. The editor validates and migrates original version-1 single-note and version-2 chord files on opening, preserving pitches, durations, IDs, title, and measures. The older first-milestone application cannot open version-3 files. Files may be up to 10 MB, enough for the supported maximum of 200 measures with 10-pitch chords. Keep the editable TypeNote file as well as your PDF. Imported-score PDFs use the same Verovio A4 pages as the preview, rasterized at 300 dpi; export is cancellable and stays local. Music normally has approximately 15 mm margins; preserved page text can extend to the source page edges. Engraved systems are distributed between the text areas, with natural spacing retained for short excerpts. Page geometry is adapted to A4 rather than reproduced pixel for pixel.
 
 ## Architecture
 
@@ -109,6 +115,8 @@ Native editable files use **version 3**; imported MusicXML documents use **versi
 - `src/documents/`: version-4 complete MusicXML documents, targeted DOM edits, inspection and local serialization.
 - `src/components/ImportedScoreEditor.tsx`: imported-score selection, correction, source editing and bounded history.
 - `src/notation/imported.ts` and `imported.worker.ts`: cancellable local Verovio rendering and sanitized SVG output.
+- `src/notation/importedCompatibility.ts`: removes exact duplicate chord-member beams from a disposable rendering copy to prevent Verovio losing chord/following notes; saved MusicXML remains unchanged.
+- `src/notation/importedLayout.ts`: positions MusicXML credits, reserves original page-text regions and distributes encoded systems without changing authoritative XML. `scripts/recognition/page_text.py` adds bounded local page-text images to successful recognition outputs.
 - `src/export/importedPdf.ts`: imported-score A4 PDF generation from the same rendered pages.
 - `src/App.tsx`: editor controls, keyboard interaction, and file download/open.
 - `src/components/PdfImport.tsx` and `src/documents/recognition.ts`: PDF selection, local job progress/cancellation, output selection, and opening complete MusicXML in the existing editor.
@@ -137,3 +145,5 @@ Playback is not implemented. Local PDF import is available as described above; r
 The [local OMR feasibility investigation](docs/omr-feasibility.md) evaluates the 15 supplied PDFs using Audiveris, with source-quality review, hand-checked excerpts and correction/export checks. The [evaluation harness](scripts/omr/README.md) preserves original PDFs, recognition projects, complete MusicXML and diagnostics locally. It requires a separately installed command-line provider, Python and Poppler; it is separate from the browser app. Generated uncompressed MusicXML can be opened using the existing correction workflow. Original PDFs remain alongside the results and are not embedded in saved TypeNote documents.
 
 Recognition needs review and correction before use. A generated XML file or readable preview does not establish that all notes, rhythm, voices or expression were recovered. Local import currently uses Audiveris; an external upload service and packaged application distribution have not been selected. [PROGRESS.md](PROGRESS.md) records completed work and remaining milestones.
+
+The [400 dpi regression review](docs/omr-400-regression.md) covers the other 14 whole PDFs after the Departure investigation, including remaining provider failures, musical errors and the implemented chord-beam rendering fix.

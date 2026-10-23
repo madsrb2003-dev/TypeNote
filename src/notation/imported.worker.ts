@@ -3,7 +3,7 @@ import { VerovioToolkit } from 'verovio/esm';
 import type { RenderedMusicPage } from '../documents/types';
 
 const workerScope = self as unknown as {
-  onmessage: ((event: MessageEvent<{ xml: string }>) => void) | null;
+  onmessage: ((event: MessageEvent<{ xml: string; positionedCredits?: boolean; fillPage?: boolean }>) => void) | null;
   postMessage(message: unknown): void;
 };
 
@@ -27,7 +27,10 @@ workerScope.onmessage = async ({ data }) => {
       pageWidth: 2100, pageHeight: 2970, scale: 40,
       pageMarginTop: 150, pageMarginBottom: 150, pageMarginLeft: 150, pageMarginRight: 150,
       adjustPageHeight: false, adjustPageWidth: false, scaleToPageSize: false,
-      breaks: hasEncodedBreaks ? 'smart' : 'auto', breaksSmartSb: 0,
+      breaks: hasEncodedBreaks ? 'encoded' : 'auto', breaksSmartSb: 0,
+      justifyVertically: true, justificationMaxVertical: data.fillPage ? 1 : .2,
+      justificationStaff: 0, justificationBraceGroup: 0, justificationBracketGroup: 0, justificationSystem: 1,
+      header: data.positionedCredits ? 'none' : 'auto', footer: data.positionedCredits ? 'none' : 'auto',
       font: 'Bravura', fontTextLiberation: true, smuflTextFont: 'embedded',
       svgViewBox: true, svgHtml5: false, svgFormatRaw: true,
       svgRemoveXlink: false, xmlIdChecksum: true, removeIds: false,

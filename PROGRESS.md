@@ -71,13 +71,49 @@
 - Passed 12 worker tests, 19 harness tests, 2 API test groups, 59 app unit tests,
   typecheck/build and 8 affected browser tests. Original PDF hash is unchanged.
 
-## Other-score edge cases: stopped at user request
+## Completed: other-score edge cases and chord-rendering fix (2026-10-23)
 
-- Started a sequential 400 dpi comparison, then stopped the broader testing at
-  the user's request. Completed Lannister: one two-staff part, 59 bars; the
-  independently transcribed opening bass bar still matches 4/4 events exactly.
-  Later rhythmic and engraving problems remain; this is not a full accuracy pass.
-  Completed/partial evidence stays in ignored `test-results/omr-400-regression/`.
+- Resumed and completed all 14 other whole-PDF attempts at 400 dpi: 59 requested
+  pages, 57 retained sheets reaching PAGE, 11 successful jobs and 18 XML outputs.
+  Cantina, Severus and Imitation failed. Separately recovered Cantina's musical
+  pages from a copied recognition project, preserving the failed whole-PDF status.
+- Reviewed selected source/render locations, staff/part/movement structure and
+  independent excerpts. Found missing bars, spurious parts, incorrect score
+  splitting, genuine missing chord tones and lost markings. Higher DPI does not
+  uniformly improve results; Lily gains an erroneous extra part.
+- Isolated a renderer bug: repeated beam instructions on chord members hide
+  correctly recognized bass content. Added a conservative rendering-copy adapter;
+  authoritative XML stays unchanged. Verified Lannister's restored five-note
+  bass passage and all three actual exported PDF pages.
+- All 19 XML documents, including recovery, pass actual TypeNote open/render and
+  source save/reopen checks. All 14 original/copy hashes match. Passed typecheck,
+  build, 59 unit tests and 20 affected browser tests, including two new beam tests.
+  No recognition processes remain. [Findings, coverage and limits](docs/omr-400-regression.md).
+
+## Completed: imported page layout and surrounding text (2026-10-23)
+
+- Fixed Lannister's five-bar first system being split by the renderer. Encoded
+  system/page breaks now drive engraving, with space distributed between systems
+  and natural gaps retained for short excerpts and sparse final pages.
+- Positioned credits separately from notation. Successful new local imports can
+  preserve original headers, footers and unrepresented opening directions as
+  embedded PNG credits. Existing metadata and musical parts remain intact;
+  exact extracted provider XML is retained separately when images are added.
+- Added an undoable **Use editable page text** action. Facsimile lettering remains
+  an image; notes stay editable. Images survive MusicXML/TypeNote saving and reopening.
+- Verified Lannister's real first-page and full-score JSON round trips and one/three
+  A4 PDF pages. The first page has four five-bar systems, original title/composer,
+  opening instruction and copyright footer. Inspected all three exported pages.
+- Tested added facsimiles on First Step and Kadoran without another OMR run.
+  Fixed First Step's oversized blank footer crop, duplicate opening tempo in its
+  header, and excessive final-page spacing. Verified First Step's three-page PDF
+  and saved score; its repeated PDF footers have identical rendered pixel crops.
+- All 19 retained recognition outputs open/render and preserve source on
+  save/reopen. Passed typecheck/build, 59 unit tests, all 47 browser tests,
+  28 recognition Python tests and both recognition API tests. No new dependencies.
+- Exact source geometry and all interleaved text are not guaranteed. Existing
+  recognition errors, invalid ties and First Step's displaced coda remain.
+  [Implementation, verification and limits](docs/imported-page-layout.md).
 
 ## Remaining work
 
