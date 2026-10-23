@@ -61,6 +61,16 @@ test('HTTP PDF jobs preserve scores and original, enforce security and cancel lo
   }
   const headers = { 'Content-Type': 'application/pdf', 'X-TypeNote-Request': 'pdf-import', 'X-TypeNote-Filename': encodeURIComponent('synthetic score.pdf') }
   const submit = (body = pdf(), extra = {}) => fetch(`${address}/jobs`, { method: 'POST', headers: { ...headers, ...extra }, body })
+  async function submitWhenReady(...args) {
+    // A terminal result is written just before the worker exits. Keep the
+    // single-process contract while waiting for that short cleanup interval.
+    for (let index = 0; index < 100; index++) {
+      const response = await submit(...args)
+      if (response.status !== 409) return response
+      await delay(20)
+    }
+    throw new Error('Previous worker did not exit')
+  }
   const status = id => fetch(`${address}/jobs/${id}`).then(res => res.json())
   async function finished(id) {
     for (let index = 0; index < 150; index++) {
@@ -82,7 +92,19 @@ test('HTTP PDF jobs preserve scores and original, enforce security and cancel lo
   assert.equal((await submit(pdf(), { 'Content-Type': 'text/plain' })).status, 415)
   assert.equal((await submit(Buffer.from('not pdf'))).status, 400)
   assert.equal((await fetch(`${address}/jobs?pages=1;bad`, { method: 'POST', headers, body: pdf() })).status, 400)
-  const started = await submit()
+  assert.equal((await fetch(`${address}/jobs?mode=unknown`, { method: 'POST', headers, body: pdf() })).status, 400)
+  const curvedStart = await fetch(`${address}/jobs?mode=piano-scan`, { method: 'POST', headers, body: pdf() })
+  assert.equal(curvedStart.status, 202)
+  const curvedJob = await finished((await curvedStart.json()).id)
+  assert.equal(curvedJob.status, 'completed')
+  assert.ok(curvedJob.diagnostics.some(message => message.includes('Curved piano scan mode')))
+  // The worker writes its terminal result just before exiting; wait for process cleanup.
+  let started
+  for (let attempt = 0; attempt < 50; attempt++) {
+    started = await submit()
+    if (started.status !== 409) break
+    await delay(20)
+  }
   assert.equal(started.status, 202)
   const { id } = await started.json()
   const job = await finished(id)
@@ -107,7 +129,7 @@ test('HTTP PDF jobs preserve scores and original, enforce security and cancel lo
   assert.equal(await fetch(`${address}/jobs/${id}/outputs/0`).then(res => res.text()), score)
 
   await setProvider({ fail: true })
-  const failedId = (await (await submit()).json()).id
+  const failedId = (await (await submitWhenReady()).json()).id
   const failed = await finished(failedId)
   assert.equal(failed.status, 'failed')
   assert.equal(failed.outputs.length, 2)
@@ -115,11 +137,11 @@ test('HTTP PDF jobs preserve scores and original, enforce security and cancel lo
   // Invalid page selections fail before launching the provider.
   const invalid = await fetch(`${address}/jobs?pages=2`, { method: 'POST', headers, body: pdf() }).then(res => res.json())
   assert.match((await finished(invalid.id)).message, /within 1/)
-  const malformed = (await (await submit(Buffer.from('%PDF-1.4\nnot a valid document'))).json()).id
+  const malformed = (await (await submitWhenReady(Buffer.from('%PDF-1.4\nnot a valid document'))).json()).id
   assert.equal((await finished(malformed)).status, 'failed')
 
   await setProvider({ slow: true })
-  const slowId = (await (await submit()).json()).id
+  const slowId = (await (await submitWhenReady()).json()).id
   for (let index = 0; index < 100 && (await status(slowId)).status !== 'recognizing'; index++) await delay(20)
   assert.equal((await submit()).status, 409)
   assert.equal((await fetch(`${address}/jobs/${slowId}/cancel`, { method: 'POST', headers })).status, 200)
@@ -147,7 +169,7 @@ test('HTTP PDF jobs preserve scores and original, enforce security and cancel lo
   const previousPython = process.env.TYPENOTE_PYTHON
   process.env.TYPENOTE_PYTHON = brokenPython
   try {
-    const brokenId = (await (await submit()).json()).id
+    const brokenId = (await (await submitWhenReady()).json()).id
     assert.equal((await finished(brokenId)).status, 'failed')
     assert.equal((await fetch(`${address}/status`)).status, 200)
   } finally {

@@ -14,6 +14,8 @@ from musicxml import inspect_musicxml, musicxml_bytes
 from run import pdf_metadata, write_json
 from structure import staff_diagnostics
 from page_text import preserve_page_text
+from recovery import recover_project
+from scan_geometry import prepare_piano_scan
 
 MAX_PAGES = 200
 
@@ -66,7 +68,7 @@ def provider_diagnostics(log: Path) -> list[str]:
     """Offer bounded, non-score diagnostics; full provider log is kept separately."""
     if not log.exists():
         return []
-    warnings = errors = rhythm = 0
+    warnings = errors = rhythm = unplaced = boundaries = 0
     with log.open('rb') as stream:
         for _ in range(16384):
             line = stream.readline(4096)
@@ -76,6 +78,8 @@ def provider_diagnostics(log: Path) -> list[str]:
             lowered = line.lower()
             warnings += bool(re.search(rb'\bwarn(?:ing)?\b', lowered))
             errors += bool(re.search(rb'\berror\b|\bexception\b', lowered))
+            boundaries += bool(re.search(rb'deleting\s+half column', lowered))
+            unplaced += bool(re.search(rb'chord[^\n]*no timeoffset', lowered))
             rhythm += bool(re.search(rb'voice\{[^\n]*excess:|no correct rhythm', lowered))
     result = []
     if warnings:
@@ -84,10 +88,14 @@ def provider_diagnostics(log: Path) -> list[str]:
         result.append(f'The recognition log contains {errors} error/exception lines; some notation may be missing')
     if rhythm:
         result.append(f'The converter reported {rhythm} rhythm problems; check note lengths, rests and bar alignment against the PDF')
+    if boundaries:
+        result.append(f'The converter removed {boundaries} incomplete barline columns; adjacent bars may have merged. Compare bar boundaries with the PDF.')
+    if unplaced:
+        result.append(f'The converter could not place {unplaced} chord records in time; notes may be absent from the editable result. Compare these passages with the PDF.')
     return result
 
 
-def execute(job: Path, executable: Path, pdfinfo: str, pages: str, timeout: float = 600) -> dict:
+def execute(job: Path, executable: Path, pdfinfo: str, pages: str, timeout: float = 600, mode: str = 'standard') -> dict:
     started = time.monotonic()
     result = json.loads((job / 'result.json').read_text())
     raw = job / 'raw'
@@ -100,29 +108,55 @@ def execute(job: Path, executable: Path, pdfinfo: str, pages: str, timeout: floa
         if result['pages'] > MAX_PAGES:
             raise ValueError('PDF exceeds the 200-page recognition limit; choose a smaller PDF')
         sheets = page_numbers(pages, result['pages'])
+        if mode not in ('standard', 'piano-scan'):
+            raise ValueError('Choose a supported recognition mode')
+        if mode == 'piano-scan':
+            result['diagnostics'].append('Curved piano scan mode: optional local straightening/contrast correction and increased staff-line tolerance treat the source as one piano piece. Review grouping against the original.')
         result.update(status='recognizing', message='Recognizing notation locally. This may take several minutes.')
         write_json(job / 'result.json', result)
         # At 300 dpi the supplied Departure scan loses an entire upper staff
         # and its barlines. 400 dpi recovers the two-staff, 34-bar structure.
         # This changes image recognition, never pitch/staff labels in the XML.
-        command = AudiverisAdapter(executable, pdf_resolution=400).command(job / 'original.pdf', raw, sheets)
-        process = run_process(command, job / 'recognition.log', timeout)
-        result['outputs'], diagnostics = collect(raw, job)
-        if process.status == 'completed' and process.exit_code == 0 and any(raw.glob('*.omr')):
+        source = job / 'original.pdf'
+        prepared_pages = None
+        if mode == 'piano-scan':
+            result['message'] = 'Preparing the curved scan locally before recognizing notation.'
+            write_json(job / 'result.json', result)
+            prepared, preparation_diagnostics = prepare_piano_scan(source, job / 'scan-preparation', sheets,
+                min(180, timeout - (time.monotonic() - started)))
+            result['diagnostics'].extend(preparation_diagnostics)
+            if prepared is not None:
+                source, prepared_pages = prepared, prepared.parent
+        if (job / 'cancel.requested').exists():
+            raise KeyboardInterrupt()
+        remaining = timeout - (time.monotonic() - started)
+        if remaining <= 1:
+            raise ValueError('Recognition time budget was exhausted during scan preparation. Try fewer pages.')
+        result['message'] = 'Recognizing notation locally. This may take several minutes.'
+        write_json(job / 'result.json', result)
+        command = AudiverisAdapter(executable, pdf_resolution=400, profile=mode, prepared_scan=prepared_pages is not None).command(source, raw, sheets)
+        process = run_process(command, job / 'recognition.log', remaining)
+        process, output_root, recovery_diagnostics = recover_project(job, raw, executable, process, mode,
+            sheets or list(range(1, result['pages'] + 1)), timeout - (time.monotonic() - started))
+        result['outputs'], diagnostics = collect(output_root, job)
+        if len(result['outputs']) == 1 and (prepared_pages is not None or output_root != raw):
+            result['outputs'][0]['name'] = Path(result.get('name', 'score.pdf')).stem + '.musicxml'
+        diagnostics.extend(recovery_diagnostics)
+        if process.status == 'completed' and process.exit_code == 0 and any(output_root.glob('*.omr')):
             for output in result['outputs']:
                 remaining = timeout - (time.monotonic() - started)
                 if remaining <= 1 or (job / 'cancel.requested').exists():
                     break
                 target = job / output['file']
                 original = target.read_bytes()
-                enriched, text_diagnostics = preserve_page_text(original, raw, job / 'original.pdf', timeout=remaining)
+                enriched, text_diagnostics = preserve_page_text(original, output_root, job / 'original.pdf', timeout=remaining, prepared_pages=prepared_pages)
                 if enriched != original:
                     provider = job / 'provider-musicxml'
                     provider.mkdir(exist_ok=True)
                     (provider / target.name).write_bytes(original)
                     target.write_bytes(enriched)
                 diagnostics.extend(text_diagnostics)
-        result['diagnostics'].extend(diagnostics + staff_diagnostics(raw) + provider_diagnostics(job / 'recognition.log'))
+        result['diagnostics'].extend(diagnostics + staff_diagnostics(output_root, 2 if mode == 'piano-scan' else None) + provider_diagnostics(job / 'recognition.log'))
         result['diagnostics'].append('Recognition can omit or misread notation. Compare the result with the original PDF before using it.')
         if process.status == 'cancelled' or (job / 'cancel.requested').exists():
             result.update(status='cancelled', message='Recognition cancelled. Original PDF and partial outputs retained locally.')
@@ -150,13 +184,14 @@ def main() -> None:
     parser.add_argument('--audiveris', required=True, type=Path)
     parser.add_argument('--pdfinfo', required=True)
     parser.add_argument('--pages', default='')
+    parser.add_argument('--mode', choices=['standard', 'piano-scan'], default='standard')
     args = parser.parse_args()
     # run_process catches KeyboardInterrupt and terminates the provider's entire group.
     def interrupt(_signum, _frame):
         raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, interrupt)
-    execute(args.job, args.audiveris, args.pdfinfo, args.pages)
+    execute(args.job, args.audiveris, args.pdfinfo, args.pages, mode=args.mode)
 
 
 if __name__ == '__main__':

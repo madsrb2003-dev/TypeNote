@@ -129,6 +129,8 @@ export function createRecognitionService(root) {
       return send(res, 413, { message: 'PDF exceeds the 100 MiB recognition limit.' })
     }
     const pages = url.searchParams.get('pages') || ''
+    const mode = url.searchParams.get('mode') || 'standard'
+    if (!['standard', 'piano-scan'].includes(mode)) return send(res, 400, { message: 'Choose Standard or Curved piano scan recognition.' })
     if (pages.length > 1000 || (pages && !/^\s*\d+(?:\s*-\s*\d+)?(?:\s*,\s*\d+(?:\s*-\s*\d+)?)*\s*$/.test(pages))) {
       return send(res, 400, { message: 'Use page numbers and ranges, for example 1,2,4-6.' })
     }
@@ -167,7 +169,7 @@ export function createRecognitionService(root) {
       await rename(join(record.path, 'upload.partial'), join(record.path, 'original.pdf'))
       let name = 'score.pdf'
       try { name = decodeURIComponent(String(req.headers['x-typenote-filename'] || 'score.pdf')).replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 200) } catch { /* keep fallback */ }
-      const state = { id: record.id, name, status: 'validating', message: 'Checking the PDF before local recognition.', diagnostics: [], outputs: [] }
+      const state = { id: record.id, name, mode, status: 'validating', message: 'Checking the PDF before local recognition.', diagnostics: [], outputs: [] }
       await atomicJson(join(record.path, 'result.json'), state)
       if (closing || record.cancelled) {
         await cancel(record)
@@ -177,7 +179,7 @@ export function createRecognitionService(root) {
       const log = await open(join(record.path, 'worker.log'), 'a', 0o600)
       try {
         record.child = spawn(configuration.python, [worker, '--job', record.path,
-          '--audiveris', configuration.audiveris, '--pdfinfo', configuration.pdfinfo, '--pages', pages],
+          '--audiveris', configuration.audiveris, '--pdfinfo', configuration.pdfinfo, '--pages', pages, '--mode', mode],
         { cwd: root, stdio: ['ignore', log.fd, log.fd] })
         record.child.once('error', error => { void finalize(record, error).catch(() => {}) })
         record.child.once('exit', () => { void finalize(record).catch(() => {}) })

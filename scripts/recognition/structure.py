@@ -6,7 +6,7 @@ import zipfile
 from musicxml import MAX_XML_BYTES, parse_xml
 
 
-def staff_diagnostics(raw: Path) -> list[str]:
+def staff_diagnostics(raw: Path, expected_staves: int | None = None) -> list[str]:
     diagnostics = []
     for path in sorted(raw.rglob('*.omr'))[:100]:
         if not path.resolve().is_relative_to(raw.resolve()):
@@ -23,18 +23,19 @@ def staff_diagnostics(raw: Path) -> list[str]:
                     for number, system in enumerate(page.findall('system'), 1):
                         count = len(system.findall('part/staff-configuration'))
                         if count:
-                            systems.append((sheet.get('number', '?'), number, count))
+                            systems.append((sheet.findtext('input/number', sheet.get('number', '?')), number, count))
             if not systems:
                 continue
             usual, frequency = Counter(count for _, _, count in systems).most_common(1)[0]
             # A change can be intentional (e.g. a condensed system). Report the
             # evidence, never invent a missing staff, clef or part assignment.
-            if frequency < 2:
+            if expected_staves is None and frequency < 2:
                 continue
             for sheet, number, count in systems:
-                if count < usual:
-                    diagnostics.append(f'PDF page {sheet}, system {number}: recognized {count} staff/staves; '
-                                       f'most systems have {usual}. Check for a missing staff and merged bars in the original PDF.')
+                if count < (expected_staves or usual):
+                    diagnostics.append(f'PDF page {sheet}, system {number}: recognized {count} staff/staves; ' +
+                                       (f'piano scan mode expects {expected_staves}. ' if expected_staves else f'most systems have {usual}. ') +
+                                       'Check for a missing staff and merged bars in the original PDF.')
                     if len(diagnostics) >= 10:
                         return diagnostics
         except (OSError, KeyError, ValueError, RuntimeError, zipfile.BadZipFile):

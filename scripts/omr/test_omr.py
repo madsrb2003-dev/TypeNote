@@ -106,6 +106,17 @@ class ProcessTests(unittest.TestCase):
             Path("/private/tmp/a score.pdf"), Path("/private/tmp/raw"), [1, 3])
         self.assertEqual(command[-5:], ["-sheets", "1", "3", "--", "/private/tmp/a score.pdf"])
 
+    def test_piano_scan_profile_is_explicit_and_conservative(self):
+        default = AudiverisAdapter(Path('provider'), pdf_resolution=400).command(Path('input.pdf'), Path('out'), [])
+        self.assertNotIn('org.audiveris.omr.sheet.grid.BarsRetriever.forceSinglePart=true', default)
+        piano = AudiverisAdapter(Path('provider'), pdf_resolution=400, profile='piano-scan').command(Path('input.pdf'), Path('out'), [2])
+        self.assertIn('org.audiveris.omr.sheet.grid.BarsRetriever.forceSinglePart=true', piano)
+        self.assertIn('org.audiveris.omr.sheet.ProcessingSwitches.indentations=false', piano)
+        self.assertNotIn('org.audiveris.omr.sheet.rhythm.MeasuresBuilder.minStandardWidth=0', piano)
+        self.assertEqual(piano[-4:], ['-sheets', '2', '--', 'input.pdf'])
+        with self.assertRaises(ValueError):
+            AudiverisAdapter(Path('provider'), profile='unknown').command(Path('input.pdf'), Path('out'), [])
+
     def test_timeout_terminates_local_process(self):
         with tempfile.TemporaryDirectory() as temporary:
             started = time.monotonic()

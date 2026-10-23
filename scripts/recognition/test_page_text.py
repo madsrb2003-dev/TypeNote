@@ -189,6 +189,32 @@ class PageTextTests(unittest.TestCase):
                 patch('page_text.subprocess.run', side_effect=RuntimeError('private provider detail')):
             self.assertEqual(preserve_page_text(SCORE, self.raw, self.pdf), (SCORE, [FAILURE]))
 
+    def test_straightened_text_crops_use_matching_prepared_page_not_original_pdf(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest('Optional local Pillow unavailable')
+        prepared = self.raw.parent / 'prepared'
+        prepared.mkdir()
+        image = Image.new('L', (1000, 2000), 255)
+        # The source mapping in the project is PDF page 4, not OMR sheet 2.
+        image.paste(0, (0, 0, 1000, 250))
+        image.save(prepared / 'page-4.png')
+        with patch('page_text.shutil.which', return_value=None), \
+                patch('page_text.subprocess.run') as run:
+            enriched, diagnostics = preserve_page_text(SCORE, self.raw, self.pdf, prepared_pages=prepared)
+        self.assertNotEqual(enriched, SCORE, diagnostics)
+        run.assert_not_called()
+        root = ET.fromstring(enriched)
+        self.assertEqual(root.find('part').find('measure/note').get('id'), 'keep')
+        credit = root.find("credit[credit-type='typenote-source-header']/credit-image")
+        import io
+        pixels = base64.b64decode(credit.get('source').split(',', 1)[1])
+        with Image.open(io.BytesIO(pixels)) as crop:
+            self.assertEqual(crop.getpixel((10, 10)), 0)
+        Image.new('L', (20, 20)).save(prepared / 'page-4.png')
+        self.assertEqual(preserve_page_text(SCORE, self.raw, self.pdf, prepared_pages=prepared), (SCORE, [FAILURE]))
+
     def test_png_header_and_geometry_are_validated(self):
         self.assertEqual(png_dimensions(png(12, 34)), (12, 34))
         for invalid in [b'not png', png(0, 10), png(50000, 10)]:

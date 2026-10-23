@@ -4,6 +4,12 @@
 .imported-controls .imported-note-picker select { max-width:360px; }
 .imported-accidentals { display:flex; gap:4px; margin-top:8px; }
 .imported-accidentals button { padding:7px 10px; }
+.imported-entry { margin:0; padding:12px 20px 16px; border:0; border-bottom:1px solid #dfe4d7; min-width:0; background:#f6f8f1; }
+.imported-entry legend { padding:12px 0 0; font-size:13px; font-weight:600; color:#294734; }
+.imported-entry .imported-controls { padding:8px 0; border:0; gap:10px; }
+.entry-location { font-size:12px; color:#294734; margin:4px 0; }
+.entry-help { font-size:12px; color:#64745d; line-height:1.6; margin:8px 0 0; max-width:100ch; }
+.entry-bar-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
 .imported-score { padding:24px; background:#eeeee6; min-height:250px; }
 .imported-score > p { padding:12px; font-size:13px; }
 .imported-page { background:white; margin:0 auto 22px; max-width:900px; box-shadow:0 2px 8px #253d2514; }

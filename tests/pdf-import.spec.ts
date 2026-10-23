@@ -5,7 +5,7 @@ const id = '12345678-1234-1234-1234-123456789abc';
 const xml = `<score-partwise version="4.0"><work><work-title>Recognized study</work-title></work><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure></part></score-partwise>`;
 const file = { name: 'study.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nsynthetic mocked recognition input') };
 
-async function mock(page: Page, mode: 'success' | 'multiple' | 'failed' | 'cancel' | 'unavailable') {
+async function mock(page: Page, mode: 'success' | 'multiple' | 'failed' | 'cancel' | 'unavailable', recognitionMode = 'standard') {
   let cancelled = false;
   let polls = 0;
   await page.route('**/api/pdf-recognition/**', async route => {
@@ -16,6 +16,7 @@ async function mock(page: Page, mode: 'success' | 'multiple' | 'failed' | 'cance
       expect(request.headers()['x-typenote-request']).toBe('pdf-import');
       expect(request.headers()['content-type']).toBe('application/pdf');
       expect(url.searchParams.get('pages')).toBe('2-3');
+      expect(url.searchParams.get('mode')).toBe(recognitionMode === 'standard' ? null : recognitionMode);
       return route.fulfill({ status: 202, json: { id } });
     }
     if (url.pathname.endsWith('/cancel')) { cancelled = true; return route.fulfill({ json: {} }); }
@@ -92,4 +93,14 @@ test('unconfigured local recognition gives setup feedback without allowing a fak
   await mock(page, 'unavailable');
   await expect(page.getByRole('alert')).toContainText('needs setup');
   await expect(page.getByRole('button', { name: 'Recognize PDF', exact: true })).toBeDisabled();
+});
+
+
+test('curved piano scan mode is opt-in and reaches the recognition request', async ({ page }) => {
+  await mock(page, 'success', 'piano-scan');
+  await expect(page.getByLabel('Recognition mode')).toHaveValue('standard');
+  await page.getByLabel('Recognition mode').selectOption('piano-scan');
+  await expect(page.getByRole('dialog')).toContainText('one piano piece');
+  await recognize(page);
+  await expect(page.getByLabel('Score title', { exact: true })).toHaveValue('Recognized study');
 });

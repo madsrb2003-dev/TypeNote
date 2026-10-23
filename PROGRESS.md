@@ -115,13 +115,57 @@
   recognition errors, invalid ties and First Step's displaced coda remain.
   [Implementation, verification and limits](docs/imported-page-layout.md).
 
+## Completed: note entry and structural editing for imported scores (2026-10-23)
+
+- Added visible Correct / Insert / Build chord modes to the imported editor.
+  Enter notes/rests using buttons or C D E F G A H / R, preserving H/B spelling
+  and inherited staff/voice context. Select a rest to fill it; later entries
+  continue after the newly selected event.
+- Added chord-tone entry, whole-chord duration changes, conservative deletion,
+  and empty-bar insertion across aligned parts. Exact source timing is retained:
+  shorter notes leave rests, longer notes consume following rests, and full bars
+  reject additions without moving other voices.
+- New bars inherit musical settings without redundant signature/clef changes.
+  Original measure labels remain; new labels use `-new-N`. Missing active staff
+  lanes receive rests. A simple terminal barline moves to an appended bar.
+- Undo/redo restores the document, selection and entry mode/position. Save/reopen
+  retains new notes without migrating the version-4 format. Source drafts and
+  ordinary text inputs keep their existing protection.
+- Tested real Lannister edits, including chord/rhythm edits, a new bar, note/rest
+  entry, undo/redo, JSON reopening and PDF export. All other 19 measures, original
+  bass notes and credits remain structurally unchanged. Inspected the exported
+  Lannister and entry-study PDFs, plus desktop/tablet controls without overflow.
+- Unsupported source timing/connections reject transactionally: no cross-bar
+  ripple, automatic divisions rescaling, new voice/staff creation or tuplet/tie/
+  grace rewriting. Bar insertion cannot separate ties/tuplets or safely rewrite
+  multiple-rest/measure-repeat groups. Complex notation still needs source editing.
+- Passed typecheck/build, all 59 app unit tests and all 59 browser tests, including
+  12 structural/entry cases. No dependencies or saved-file format changes.
+- [User workflow, implementation and verification](docs/imported-score-editing.md).
+
+## Paused: difficult-score recognition recovery (2026-10-24)
+
+- Evaluated all 14 requested PDFs, excluding Lannister; 57 musical pages with
+  Cantina's cover excluded. Added experimental local piano-scan preparation,
+  conservative provider-project recovery and clearer missing-rhythm/bar warnings.
+- Severus now exports six pages with paired staves, but still has 121/122 bars,
+  merged-bar and rhythm errors. I Giorni's 43/189-bar contrast regression remains
+  unresolved: the capped-filter full retry was cancelled when work was stopped.
+  Lily's Theme, One Day and Imitation also have confirmed musical errors.
+- Kept completed results and cancelled experiments separately. No model weights
+  were trained; Homr is installed only for a later isolated evaluation, not yet run.
+- Final checks: 72 recognition and 20 OMR Python tests, both API tests, typecheck and diff checks
+  passed. Earlier app unit/build and focused PDF-import browser checks passed.
+- [Detailed results, retained evidence and exact next steps](docs/omr-recovery-review.md).
+
 ## Remaining work
 
 - Decide production distribution and packaging. Local import now uses Audiveris
   through the Node/Python development/preview server; a static deployment alone
   cannot recognize PDFs. No remote upload service or desktop package is selected.
-- Build a source-PDF/result review workflow with page mapping, partial-failure
-  recovery and practical rhythm/voice/rest/chord corrections.
+- Build a source-PDF/result review workflow with page mapping and partial-failure
+  recovery. Expand imported editing beyond the implemented rest/chord/duration/bar
+  operations to richer voice editing, finer timing and connected rhythmic notation.
 - Expand independently checked notation samples and measure musician correction
   effort before setting recognition acceptance thresholds. Current results include
   lost notes/rhythm, missing fingerings, incorrect dynamics, segmentation errors

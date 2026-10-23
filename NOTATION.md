@@ -51,11 +51,14 @@ The UI imports uncompressed `.musicxml`/`.xml` **score-partwise** files into a s
 | --- | --- |
 | Display and PDF | Verovio engraving, sanitized SVG pages, local A4 PDF at 300 dpi; rendering diagnostics surfaced |
 | Note correction | Individual chord-note selection, pitch/octave/accidental controls, H/B keyboard convention, fingering |
+| Note entry | Fill/split a rest; insert using an adjacent rest or unused final-voice time; keyboard Insert/Build chord modes; staff/voice inherited from selection |
+| Rhythm and deletion | Breve–128th with up to two dots when exactly representable at source divisions; change whole-chord duration; shorter events leave rests, longer events consume following rests; delete a chord tone or replace a plain note with a rest |
+| Bar insertion | Empty aligned bar before/after selection across parts with equal bar lengths; active staves/observed voices receive rests; preserve original bar labels and assign a unique new label |
 | Ties | Unambiguous connected pitches edited together; ambiguous/incomplete or cross-staff/voice chains require source editing |
 | Directions and metadata | Title/composer; simple dynamics, expression words and rehearsal text |
 | Other notation | Complete source retained; advanced XML editor for changes without dedicated controls |
 | Save/open | Version-4 TypeNote JSON wraps complete XML; direct MusicXML download retains the same source |
-| Undo/redo | Up to 30 snapshots, bounded by a 32 MB history budget; session-only |
+| Undo/redo | Document, note selection and entry mode/position; up to 30 snapshots, bounded by a 32 MB history budget; session-only |
 
 The `full-piano.musicxml` and `nested-rhythm.musicxml` fixtures exercise source retention, extended engraving, pitch corrections and PDF output. Automated SVG element checks establish only that elements reached rendering; visual inspection is still necessary for placement, connections and collisions.
 
@@ -66,6 +69,7 @@ The `full-piano.musicxml` and `nested-rhythm.musicxml` fixtures exercise source 
 - Opening checks XML structure, identifiers and document shape, not every MusicXML schema constraint or musical inconsistency.
 - The dedicated pitch controls support conventional semitone alterations from double-flat through double-sharp. Other pitches and notation remain in source; they are not silently approximated.
 - Complex dynamics, multiple fingerings and ambiguous accidental/tie contexts can require advanced source editing. Source editing is not a substitute for a full visual notation-authoring interface.
+- Structural controls work with integer source timing and supported meter; no automatic rescaling of divisions, cross-bar ripple, new voice/staff creation, or tuplet/tie/grace rewriting. Edits to unsupported connected notation, referenced rests, ambiguous chord timing or already overfull bars are rejected. Duration edits retain independent fingerings, basic articulations and fermatas; more complex markings can require source editing. Rhythm changes clear affected explicit beam runs for the engraver to regroup. Original source outside the edited passage remains authoritative.
 - Verovio's MusicXML conversion and engraving have their own limits. Preserved source constructs may render differently or incompletely, especially complex interacting beams and tuplets. Diagnostics are useful but are not a complete unsupported-feature detector. A successful render or PDF download is not a guarantee of fidelity.
 - PDF output follows the rendered projection, not invisible source semantics. Review preview and exported pages before relying on them.
 

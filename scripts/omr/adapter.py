@@ -24,15 +24,35 @@ class RecognitionAdapter(Protocol):
 class AudiverisAdapter:
     executable: Path
     pdf_resolution: int | None = None
+    profile: str = 'standard'
+    prepared_scan: bool = False
 
     def command(self, source: Path, output: Path, sheets: list[int]) -> list[str]:
+        if self.profile not in ('standard', 'piano-scan'):
+            raise ValueError('Unknown recognition profile')
         command = [str(self.executable), "-batch", "-transcribe", "-export", "-save",
                    "-output", str(output)]
         if self.pdf_resolution is not None:
             command.extend(["-constant", f"org.audiveris.omr.image.ImageLoading.pdfResolution={self.pdf_resolution}"])
+        if self.profile == 'piano-scan':
+            for constant in PIANO_SCAN_CONSTANTS:
+                command.extend(['-constant', constant])
+        if self.prepared_scan:
+            command.extend(['-constant', 'org.audiveris.omr.image.FilterDescriptor.defaultKind=GLOBAL',
+                            '-constant', 'org.audiveris.omr.image.GlobalDescriptor.defaultThreshold=128'])
         if sheets:
             command.extend(["-sheets", *map(str, sheets)])
         return [*command, "--", str(source)]
+
+
+# Opt-in profile: a single piano piece with curved photographed staff lines.
+# Standard recognition remains unchanged for existing imports/other ensembles.
+PIANO_SCAN_CONSTANTS = (
+    'org.audiveris.omr.sheet.grid.BarsRetriever.forceSinglePart=true',
+    'org.audiveris.omr.sheet.ProcessingSwitches.indentations=false',
+    'org.audiveris.omr.sheet.grid.LinesRetriever.maxSlopeDiff=0.08',
+    'org.audiveris.omr.sheet.grid.LinesRetriever.maxFilamentRotation=0.2',
+)
 
 
 def stop_process(process: subprocess.Popen) -> None:

@@ -4,6 +4,7 @@ import type { MusicXmlDocument } from './types';
 const base = '/api/pdf-recognition';
 const headers = { 'X-TypeNote-Request': 'pdf-import' };
 export const MAX_PDF_IMPORT_BYTES = 100 * 1024 * 1024;
+export type RecognitionMode = 'standard' | 'piano-scan';
 export interface RecognitionOutput { id: string; name: string; noteCount?: number }
 export interface RecognitionJob {
   id: string;
@@ -32,8 +33,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   catch { throw new Error('Local PDF recognition is unavailable. Run TypeNote locally with npm run dev or npm run preview.'); }
 }
 export const recognitionAvailability = () => request<{ available: boolean; message: string }>('/status');
-export function startRecognition(file: File, pages: string, signal?: AbortSignal) {
-  return request<{ id: string }>(`/jobs${pages.trim() ? `?pages=${encodeURIComponent(pages.trim())}` : ''}`, {
+export function startRecognition(file: File, pages: string, signal?: AbortSignal, mode: RecognitionMode = 'standard') {
+  const parameters = new URLSearchParams();
+  if (pages.trim()) parameters.set('pages', pages.trim());
+  if (mode !== 'standard') parameters.set('mode', mode);
+  return request<{ id: string }>(`/jobs${parameters.size ? `?${parameters}` : ''}`, {
     method: 'POST', headers: { 'Content-Type': 'application/pdf', 'X-TypeNote-Filename': encodeURIComponent(file.name) }, body: file, signal,
   });
 }

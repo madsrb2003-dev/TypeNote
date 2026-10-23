@@ -237,17 +237,30 @@ def png_dimensions(data: bytes) -> tuple[int, int]:
     return width, height
 
 
-def _crop(pdf, number, geometry, box, pixels, pdftoppm, destination, timeout=30):
+def _crop(pdf, number, geometry, box, pixels, pdftoppm, destination, timeout=30, prepared_pages=None):
     sx, sy = pixels[0] / geometry.width, pixels[1] / geometry.height
     x, y = max(0, math.floor(box.x * sx)), max(0, math.floor(box.y * sy))
     right, bottom = min(pixels[0], math.ceil(box.right * sx)), min(pixels[1], math.ceil(box.bottom * sy))
     width, height = right - x, bottom - y
     if width <= 0 or height <= 0:
         raise ValueError('Empty crop')
-    subprocess.run([pdftoppm, '-f', str(number), '-singlefile', '-r', '150',
-                    '-x', str(x), '-y', str(y), '-W', str(width), '-H', str(height),
-                    '-png', str(pdf), str(destination)], capture_output=True, timeout=timeout, check=True)
     output = destination.with_suffix('.png')
+    if prepared_pages is None:
+        subprocess.run([pdftoppm, '-f', str(number), '-singlefile', '-r', '150',
+                        '-x', str(x), '-y', str(y), '-W', str(width), '-H', str(height),
+                        '-png', str(pdf), str(destination)], capture_output=True, timeout=timeout, check=True)
+    else:
+        # Provider coordinates refer to the straightened image. Cropping the
+        # unchanged PDF at these coordinates could duplicate or clip notation.
+        from PIL import Image
+        image_path = prepared_pages / f'page-{number}.png'
+        if not image_path.resolve().is_relative_to(prepared_pages.resolve()):
+            raise ValueError('Prepared image outside retained page directory')
+        with Image.open(image_path) as image:
+            if image.size != (round(geometry.width), round(geometry.height)):
+                raise ValueError('Prepared image dimensions do not match provider geometry')
+            image.resize(pixels, Image.Resampling.LANCZOS).crop((x, y, right, bottom)).save(output)
+
     if output.stat().st_size > MAX_IMAGE:
         raise ValueError('Page lettering image exceeds size limit')
     data = output.read_bytes()
@@ -257,7 +270,7 @@ def _crop(pdf, number, geometry, box, pixels, pdftoppm, destination, timeout=30)
     return data, Box(x / sx, y / sy, width / sx, height / sy)
 
 
-def preserve_page_text(data: bytes, raw: Path, original_pdf: Path, timeout: float = MAX_SECONDS) -> tuple[bytes, list[str]]:
+def preserve_page_text(data: bytes, raw: Path, original_pdf: Path, timeout: float = MAX_SECONDS, prepared_pages: Path | None = None) -> tuple[bytes, list[str]]:
     """Best-effort, bounded local facsimiles; never prevent a recognized score opening."""
     try:
         deadline = time.monotonic() + min(MAX_SECONDS, timeout)
@@ -296,13 +309,14 @@ def preserve_page_text(data: bytes, raw: Path, original_pdf: Path, timeout: floa
         if part is None or 1 + len(part.findall('./measure/print[@new-page="yes"]')) != len(sheets):
             raise ValueError('Source page mapping does not match output pages')
         pdftoppm, pdfinfo = shutil.which('pdftoppm'), shutil.which('pdfinfo')
-        if not pdftoppm or not pdfinfo:
+        if prepared_pages is None and (not pdftoppm or not pdfinfo):
             raise ValueError('Local PDF tools unavailable')
         pages = _project_pages(raw, sheets)
         credits, total = [], 0
         with tempfile.TemporaryDirectory(prefix='typenote-page-text-') as temporary:
             for output_page, (original_page, geometry) in enumerate(pages, 1):
-                pixels = _page_pixels(original_pdf, original_page, pdfinfo, remaining())
+                pixels = ((math.ceil(geometry.width * 150 / 400), math.ceil(geometry.height * 150 / 400))
+                          if prepared_pages is not None else _page_pixels(original_pdf, original_page, pdfinfo, remaining()))
                 starts = [m for i, m in enumerate(part.findall('measure'))
                           if i == 0 or m.find('print[@new-page="yes"]') is not None]
                 first_measure = starts[output_page - 1]
@@ -313,7 +327,7 @@ def preserve_page_text(data: bytes, raw: Path, original_pdf: Path, timeout: floa
                     if kind == 'direction' and represented_direction:
                         continue
                     image, actual = _crop(original_pdf, original_page, geometry, box, pixels, pdftoppm,
-                                          Path(temporary) / f'crop-{len(credits)}', remaining())
+                                          Path(temporary) / f'crop-{len(credits)}', remaining(), prepared_pages=prepared_pages)
                     total += len(image)
                     if total > MAX_IMAGES or len(credits) >= 600:
                         raise ValueError('Page lettering exceeds image budget')

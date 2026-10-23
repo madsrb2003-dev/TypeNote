@@ -1,0 +1,5 @@
+# Optional, local image preparation for Curved piano scan mode.
+# Standard recognition does not import these packages.
+numpy>=1.26,<3
+scipy>=1.13,<2
+Pillow>=10.3,<12

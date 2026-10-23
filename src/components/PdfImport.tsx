@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cancelRecognition, getRecognition, MAX_PDF_IMPORT_BYTES, recognizedDocument, recognitionAvailability, recognitionOutputUrl, recognitionUrl, startRecognition } from '../documents/recognition';
-import type { RecognitionJob, RecognitionOutput, RecognitionSource } from '../documents/recognition';
+import type { RecognitionJob, RecognitionOutput, RecognitionSource, RecognitionMode } from '../documents/recognition';
 import type { MusicXmlDocument } from '../documents/types';
 import './pdf-import.css';
 
@@ -10,6 +10,7 @@ export function PdfImport({ onOpen, source }: { onOpen: (document: MusicXmlDocum
   const [file, setFile] = useState<File | null>(null);
   const [filename, setFilename] = useState('');
   const [pages, setPages] = useState('');
+  const [mode, setMode] = useState<RecognitionMode>('standard');
   const [job, setJob] = useState<RecognitionJob | null>(null);
   const [starting, setStarting] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -32,7 +33,7 @@ export function PdfImport({ onOpen, source }: { onOpen: (document: MusicXmlDocum
   }, [busy]);
   async function choose(selected?: File) {
     if (!selected) return;
-    setFile(selected); setFilename(selected.name); setPages(''); setJob(null); setError(''); setAvailability(null);
+    setFile(selected); setFilename(selected.name); setPages(''); setMode('standard'); setJob(null); setError(''); setAvailability(null);
     dialog.current?.showModal();
     if (selected.size > MAX_PDF_IMPORT_BYTES) { setError('PDF files must be at most 100 MB.'); return; }
     if (!selected.size) { setError('This PDF is empty. Choose another file.'); return; }
@@ -53,7 +54,7 @@ export function PdfImport({ onOpen, source }: { onOpen: (document: MusicXmlDocum
     if (!file || busy) return;
     setStarting(true); setError(''); setJob(null); cancelRequested.current = false;
     try {
-      const { id } = await startRecognition(file, pages);
+      const { id } = await startRecognition(file, pages, undefined, mode);
       activeId.current = id;
       if (!mounted.current) { await cancelRecognition(id); return; }
       setStarting(false);
@@ -101,6 +102,8 @@ export function PdfImport({ onOpen, source }: { onOpen: (document: MusicXmlDocum
       <p className="pdf-import-filename">{filename}</p>
       <p>Recognition runs on this computer. The PDF stays local, and the result opens as editable MusicXML. Use <strong>Save score</strong> to download a <strong>.typenote.json</strong> file.</p>
       {file && <label className="pdf-import-pages">Pages to recognize<input placeholder="All pages, or e.g. 2–5, 8" value={pages} disabled={busy} onChange={event => setPages(event.target.value.replace(/[–—]/g, '-'))} /></label>}
+      {file && <label className="pdf-import-pages">Recognition mode<select value={mode} disabled={busy} onChange={event => setMode(event.target.value as RecognitionMode)}><option value="standard">Standard</option><option value="piano-scan">Curved piano scan</option></select></label>}
+      {file && mode === 'piano-scan' && <p className="pdf-import-hint">Experimental: for one piano piece photographed with curved staves. Uses optional local scan straightening and keeps the piece together. Use Standard for multiple instruments or separate pieces.</p>}
       <p className="pdf-import-hint">Skip covers or select a few pages for a faster first import. Recognition can miss notes, rhythm and markings; compare the result with the original.</p>
       {!availability && !error && !job && <p role="status">Checking local recognition…</p>}
       {availability && !availability.available && <p role="alert">{availability.message}</p>}

@@ -49,6 +49,41 @@ class WorkerTests(unittest.TestCase):
         self.assertIn('org.audiveris.omr.image.ImageLoading.pdfResolution=400', run.call_args.args[0])
         self.assertNotIn('private', json.dumps(result))
 
+    def test_piano_scan_uses_prepared_source_and_matching_text_coordinates(self):
+        prepared = self.job / 'scan-preparation' / 'scan-test' / 'score.tiff'
+        prepared.parent.mkdir(parents=True)
+        prepared.write_bytes(b'retained prepared source')
+        def with_project(*args):
+            process = self.provider(*args)
+            (self.job / 'raw' / 'source.omr').write_bytes(b'project')
+            return process
+        with patch('worker.pdf_metadata', return_value={'pages': 6}), \
+                patch('worker.prepare_piano_scan', return_value=(prepared, ['Prepared scan'])) as prepare, \
+                patch('worker.run_process', side_effect=with_project) as run, \
+                patch('worker.preserve_page_text', side_effect=lambda data, *a, **k: (data, [])) as text:
+            result = execute(self.job, Path('/provider'), '/pdfinfo', '2,6', mode='piano-scan')
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(prepare.call_args.args[2], [2, 6])
+        self.assertEqual(run.call_args.args[0][-1], str(prepared))
+        self.assertIn('org.audiveris.omr.image.FilterDescriptor.defaultKind=GLOBAL', run.call_args.args[0])
+        self.assertLessEqual(run.call_args.args[2], 600)
+        self.assertEqual(text.call_args.kwargs['prepared_pages'], prepared.parent)
+        self.assertEqual((self.job / 'original.pdf').read_bytes(), b'%PDF-synthetic')
+
+    def test_preparation_refusal_falls_back_but_preparation_cancel_never_runs_provider(self):
+        with patch('worker.pdf_metadata', return_value={'pages': 1}), \
+                patch('worker.prepare_piano_scan', return_value=(None, ['Preparation skipped'])), \
+                patch('worker.run_process', side_effect=self.provider) as run:
+            result = execute(self.job, Path('/provider'), '/pdfinfo', '', mode='piano-scan')
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(run.call_args.args[0][-1], str(self.job / 'original.pdf'))
+        self.assertIn('Preparation skipped', result['diagnostics'])
+        with patch('worker.pdf_metadata', return_value={'pages': 1}), \
+                patch('worker.prepare_piano_scan', side_effect=KeyboardInterrupt()), patch('worker.run_process') as run:
+            result = execute(self.job, Path('/provider'), '/pdfinfo', '', mode='piano-scan')
+        self.assertEqual(result['status'], 'cancelled')
+        run.assert_not_called()
+
     def test_nonzero_does_not_become_success_with_partial_score(self):
         def failed(*args):
             self.provider(*args)
@@ -168,6 +203,31 @@ class WorkerTests(unittest.TestCase):
         with zipfile.ZipFile(project, 'w') as archive:
             archive.writestr('book.xml', book.replace('<part>' + staff + '</part>', '<part>' + staff * 2 + '</part>'))
         self.assertEqual(staff_diagnostics(raw), [])
+
+    def test_deleted_partial_barlines_warn_about_merged_bars(self):
+        log = self.job / 'recognition.log'
+        log.write_text('INFO private score deleting   half column: private positions\n')
+        diagnostics = provider_diagnostics(log)
+        self.assertEqual(len(diagnostics), 1)
+        self.assertIn('1 incomplete barline columns', diagnostics[0])
+        self.assertNotIn('private', str(diagnostics))
+
+    def test_piano_scan_flags_uniform_single_staff_loss_and_uses_source_page(self):
+        raw = self.job / 'raw'
+        raw.mkdir()
+        with zipfile.ZipFile(raw / 'source.omr', 'w') as archive:
+            archive.writestr('book.xml', '<book><sheet number="1"><input><number>7</number></input><page><system><part><staff-configuration/></part></system></page></sheet></book>')
+        self.assertEqual(staff_diagnostics(raw), [])
+        diagnostics = staff_diagnostics(raw, 2)
+        self.assertIn('page 7, system 1', diagnostics[0])
+        self.assertIn('expects 2', diagnostics[0])
+
+    def test_unplaced_chords_warn_about_omitted_editable_notes_without_private_text(self):
+        log = self.job / 'recognition.log'
+        log.write_text('WARN private Chord#123 with no timeOffset\n')
+        diagnostics = provider_diagnostics(log)
+        self.assertTrue(any('1 chord records' in item for item in diagnostics))
+        self.assertNotIn('private', str(diagnostics))
 
     def test_invalid_project_metadata_does_not_hide_recognized_output(self):
         raw = self.job / 'raw'

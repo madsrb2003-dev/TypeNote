@@ -10,6 +10,8 @@ import { PdfImport } from './PdfImport';
 import { recognitionUrl } from '../documents/recognition';
 import type { RecognitionSource } from '../documents/recognition';
 import { hasOriginalPageText, removeOriginalPageText } from '../notation/importedLayout';
+import { editImportedStructure } from '../documents/structure';
+import type { ImportedDuration, ImportedEntry, ImportedStructureOperation } from '../documents/structure';
 
 function download(contents: BlobPart, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -64,20 +66,29 @@ function ImportedPage({ page, index, selectedId, onSelect }: { page: RenderedMus
 }
 
 interface Props { initial: MusicXmlDocument; initialSource?: RecognitionSource; onNew: () => void; onNative: (score: Score) => void }
+interface ImportedSnapshot { document: MusicXmlDocument; selectedId: string; entryMode: 'correct' | 'insert' | 'chord'; entryPosition: 'before' | 'after' | 'replace-rest' }
+const durationOptions: [ImportedDuration, string][] = [['breve', 'Breve'], ['whole', 'Whole'], ['half', 'Half'], ['quarter', 'Quarter'], ['eighth', 'Eighth'], ['16th', '16th'], ['32nd', '32nd'], ['64th', '64th'], ['128th', '128th']];
 export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }: Props) {
   const [doc, setDoc] = useState(initial);
   const [saved, setSaved] = useState(() => initialSource ? '' : serializeMusicXmlDocument(initial));
   const [recognitionSource, setRecognitionSource] = useState(initialSource);
-  const [past, setPast] = useState<MusicXmlDocument[]>([]);
-  const [future, setFuture] = useState<MusicXmlDocument[]>([]);
+  const [past, setPast] = useState<ImportedSnapshot[]>([]);
+  const [future, setFuture] = useState<ImportedSnapshot[]>([]);
   const info = useMemo(() => inspectMusicXml(doc), [doc]);
   const originalPageText = useMemo(() => hasOriginalPageText(doc.xml), [doc.xml]);
   const [selectedId, setSelectedId] = useState(() => info.notes.find(n => n.kind === 'note')?.id ?? info.notes[0]?.id ?? '');
   const selected = info.notes.find(n => n.id === selectedId);
+  const [entryMode, setEntryMode] = useState<'correct' | 'insert' | 'chord'>('correct');
+  const [entryPosition, setEntryPosition] = useState<'before' | 'after' | 'replace-rest'>('after');
+  const [entryStep, setEntryStep] = useState<Step>('C');
+  const [entryOctave, setEntryOctave] = useState(4);
+  const [entryAccidental, setEntryAccidental] = useState('auto');
+  const [entryDuration, setEntryDuration] = useState<ImportedDuration>('quarter');
+  const [entryDots, setEntryDots] = useState<0 | 1 | 2>(0);
   const [rendered, setRendered] = useState<RenderedMusicDocument | null>(null);
   const [rendering, setRendering] = useState(true);
   const [renderError, setRenderError] = useState('');
-  const [message, setMessage] = useState('Score opened. Select a note to correct its pitch or accidental.');
+  const [message, setMessage] = useState('Score opened. Select a note or rest to correct or add music.');
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [guide, setGuide] = useState(false);
@@ -116,20 +127,43 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
   useEffect(() => () => { pdfController.current?.abort(); fileRequest.current++; }, []);
   function report(text: string, error = false) { setMessage(text); setFailed(error); }
   function attempt(action: () => void) { try { action(); } catch (error) { report(error instanceof Error ? error.message : 'The change could not be made.', true); } }
-  function trimHistory(history: MusicXmlDocument[]) {
+  function trimHistory(history: ImportedSnapshot[]) {
     let bytes = 0;
-    return history.slice(-30).reverse().filter(item => { bytes += item.xml.length * 2; return bytes <= 32 * 1024 * 1024; }).reverse();
+    return history.slice(-30).reverse().filter(item => { bytes += item.document.xml.length * 2; return bytes <= 32 * 1024 * 1024; }).reverse();
   }
-  function commit(next: MusicXmlDocument) {
+  function commit(next: MusicXmlDocument, selection = selectedId) {
     if (next.xml === doc.xml) return;
     serializeMusicXmlDocument(next); // Validate the persisted size before accepting the edit.
-    setPast(trimHistory([...past, doc])); setFuture([]); setDoc(next);
+    setPast(trimHistory([...past, snapshot()])); setFuture([]); setDoc(next); setSelectedId(selection);
     report('Change applied. Surrounding notation retained.');
   }
-  function undo() { const next = past.at(-1); if (next) { setFuture([doc, ...future]); setPast(past.slice(0, -1)); setDoc(next); report('Undone.'); } }
-  function redo() { const next = future[0]; if (next) { setPast(trimHistory([...past, doc])); setFuture(future.slice(1)); setDoc(next); report('Redone.'); } }
-  function select(id: string) { setSelectedId(id); editorRef.current?.focus({ preventScroll: true }); }
+  function snapshot(): ImportedSnapshot { return { document: doc, selectedId, entryMode, entryPosition }; }
+  function restore(next: ImportedSnapshot) { setDoc(next.document); setSelectedId(next.selectedId); setEntryMode(next.entryMode); setEntryPosition(next.entryPosition); }
+  function undo() { const next = past.at(-1); if (next) { setFuture([snapshot(), ...future]); setPast(past.slice(0, -1)); restore(next); report('Undone.'); } }
+  function redo() { const next = future[0]; if (next) { setPast(trimHistory([...past, snapshot()])); setFuture(future.slice(1)); restore(next); report('Redone.'); } }
+  function select(id: string) {
+    setSelectedId(id);
+    if (entryMode === 'insert') setEntryPosition(info.notes.find(n => n.id === id)?.kind === 'rest' ? 'replace-rest' : 'after');
+    editorRef.current?.focus({ preventScroll: true });
+  }
   function edit(patch: ImportedNotePatch) { if (selected) attempt(() => commit(editImportedNote(doc, selected.id, patch))); }
+  function structure(operation: ImportedStructureOperation) {
+    if (!selected) return;
+    attempt(() => {
+      if (sourceDirty) throw new Error('Apply or discard your source draft before changing notes or rhythm.');
+      const result = editImportedStructure(doc, selected.id, operation);
+      commit(result.document, result.selectedId);
+      if (operation.kind === 'insert') setEntryPosition('after');
+      if (operation.kind === 'bar') { setEntryMode('insert'); setEntryPosition('replace-rest'); }
+    });
+  }
+  function enter(kind: 'note' | 'rest', key?: string) {
+    const step = key === 'H' || key === 'B' ? 'B' : key ? key as Step : entryStep;
+    const entry: ImportedEntry = { kind, step, octave: entryOctave, type: entryDuration, dots: entryDots,
+      ...(key === 'B' ? { accidental: 'explicit', alter: -1 } : entryAccidental === 'auto' ? { accidental: 'auto' } : { accidental: 'explicit', alter: Number(entryAccidental) as Alteration }) };
+    if (key) setEntryStep(step);
+    structure(entryMode === 'chord' ? { kind: 'chord', entry } : { kind: 'insert', position: entryPosition, entry });
+  }
   function confirmDiscard() { return !dirtyRef.current || window.confirm('Discard unsaved changes to the current score?'); }
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.nativeEvent.isComposing || (event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) return;
@@ -139,13 +173,20 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
     }
     if (event.altKey || !selected) return;
     const key = event.key.toUpperCase();
-    if (/^[A-H]$/.test(key) && editablePitch) {
+    if (/^[A-H]$/.test(key) && entryMode !== 'correct') {
+      event.preventDefault(); enter('note', key);
+    } else if (key === 'R' && entryMode === 'insert') {
+      event.preventDefault(); enter('rest');
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault(); structure({ kind: 'delete' });
+    } else if (/^[A-H]$/.test(key) && editablePitch) {
       event.preventDefault(); edit({ step: key === 'H' || key === 'B' ? 'B' : key as Step, ...(key === 'B' ? { alter: -1, accidental: 'explicit' } : { accidental: 'auto' }) });
     } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-      if (editablePitch) { event.preventDefault(); edit({ octave: Math.max(0, Math.min(9, selected.octave! + (event.key === 'ArrowUp' ? 1 : -1))) }); }
+      if (entryMode !== 'correct') { event.preventDefault(); setEntryOctave(Math.max(0, Math.min(8, entryOctave + (event.key === 'ArrowUp' ? 1 : -1)))); }
+      else if (editablePitch) { event.preventDefault(); edit({ octave: Math.max(0, Math.min(9, selected.octave! + (event.key === 'ArrowUp' ? 1 : -1))) }); }
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault(); const index = info.notes.findIndex(n => n.id === selectedId);
-      setSelectedId(info.notes[Math.max(0, Math.min(info.notes.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))].id);
+      select(info.notes[Math.max(0, Math.min(info.notes.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))].id);
     }
   }
   async function openFile(file?: File) {
@@ -162,7 +203,7 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
       const next = /^\s*\{/.test(text) ? parseMusicXmlDocument(text) : openMusicXml(text, file.name);
       if (!confirmDiscard()) return;
       setDoc(next); setSaved(serializeMusicXmlDocument(next)); setRecognitionSource(undefined); setPast([]); setFuture([]); setRendered(null);
-      setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setSourceDraft(''); setSourceBase(''); report('Score opened with its complete notation.');
+      setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setEntryMode('correct'); setSourceDraft(''); setSourceBase(''); report('Score opened with its complete notation.');
     } catch (error) { if (request === fileRequest.current) report(error instanceof Error ? error.message : 'Could not open score.', true); }
   }
   async function exportPdf() {
@@ -181,7 +222,7 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
       <PdfImport source={recognitionSource} onOpen={(next, source) => {
         if (!confirmDiscard()) return false;
         fileRequest.current++; setDoc(next); setSaved(''); setRecognitionSource(source); setPast([]); setFuture([]); setRendered(null);
-        setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setSourceDraft(''); setSourceBase('');
+        setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setEntryMode('correct'); setSourceDraft(''); setSourceBase('');
         report('PDF recognition opened. Review the notation, then Save score to keep an editable TypeNote file.'); return true;
       }} />
       <input ref={fileRef} hidden type="file" accept=".xml,.musicxml,.json" aria-label="Open imported score file" onChange={e => { void openFile(e.target.files?.[0]); e.target.value = ''; }} />
@@ -189,7 +230,7 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
       <button disabled={sourceDirty} onClick={() => download(doc.xml, `${fileName}.musicxml`, 'application/vnd.recordare.musicxml+xml')}>Save MusicXML</button>
       <button disabled={!!progress || sourceDirty || rendering || !!renderError} onClick={() => void exportPdf()}>Download PDF</button>
     </div></header>
-    <main><div className="workspace-heading"><div><div className="eyebrow">IMPORTED SCORE</div><h1>{info.title || 'Piano score'}</h1><p>Correct notes while retaining the complete score.</p></div><span className="local-badge"><span />Files stay on your device</span></div>
+    <main><div className="workspace-heading"><div><div className="eyebrow">IMPORTED SCORE</div><h1>{info.title || 'Piano score'}</h1><p>Add and edit notes while retaining the complete score.</p></div><span className="local-badge"><span />Files stay on your device</span></div>
       <section className="editor imported-editor" ref={editorRef} tabIndex={0} aria-label="Imported score editor" onKeyDown={onKeyDown}>
         {recognitionSource && <div className="recognition-source"><p>{recognitionSource.partial ? 'Partial PDF recognition' : 'Recognized from PDF'}: <strong>{recognitionSource.filename}</strong>. Review notes, rhythm and markings against the original. Save score downloads editable .typenote.json; the original PDF is kept separately on this computer.</p><a href={recognitionUrl(recognitionSource.jobId, 'original')} target="_blank" rel="noreferrer">View original PDF</a><a href={recognitionUrl(recognitionSource.jobId, 'log')} download>Recognition log</a>{recognitionSource.diagnostics.length > 0 && <details><summary>Recognition diagnostics</summary><ul>{recognitionSource.diagnostics.map((line, index) => <li key={index}>{line}</li>)}</ul></details>}</div>}
         {originalPageText && <div className="imported-notices"><p>Original page text is preserved as images; the notes remain editable. Use editable page text to change titles and credits.</p><button onClick={() => attempt(() => commit(openMusicXml(removeOriginalPageText(doc.xml), doc.filename)))}>Use editable page text</button></div>}
@@ -202,7 +243,28 @@ export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }:
             <label>Fingering<input aria-label="Fingering" maxLength={30} value={fingering} onChange={e => setFingering(e.target.value)} onBlur={() => { if (fingering !== (selected.fingering ?? '')) edit({ fingering }); }} /></label>
           </>}
         </div>
-        {guide && <div className="keyboard-guide"><p>Select a note, then type C D E F G A H to correct its written pitch. H uses the international B position; B explicitly enters B-flat. Auto follows the active signature; Natural writes ♮. ↑ ↓ change octave; ← → select adjacent notes. Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z redoes.</p><p>Pitch corrections preserve the existing rhythm, voices, ornaments and other notation. Tied pitches are checked together. The note selector includes hidden and cue notes. Use the advanced source editor for structural or rhythmic corrections.</p></div>}
+        <fieldset className="imported-entry" disabled={!selected || sourceDirty}>
+          <legend>Notes and rhythm</legend>
+          <p className="entry-location">{selected ? `Measure ${selected.measure} · part ${selected.part} · staff ${selected.staff} · voice ${selected.voice} · selected ${selected.type}${selected.dots ? `, ${selected.dots} dot${selected.dots === 1 ? '' : 's'}` : ''}` : 'Select a note or rest to edit this passage.'}</p>
+          <div className="imported-controls">
+            <label>Keyboard action<select aria-label="Note entry mode" value={entryMode} onChange={e => { setEntryMode(e.target.value as typeof entryMode); setEntryPosition(selected?.kind === 'rest' ? 'replace-rest' : 'after'); }}><option value="correct">Correct selected note</option><option value="insert">Insert notes and rests</option><option value="chord">Build chord</option></select></label>
+            {entryMode === 'insert' && <label>Insertion position<select aria-label="Insertion position" value={entryPosition} onChange={e => setEntryPosition(e.target.value as typeof entryPosition)}><option value="replace-rest">Fill selected rest</option><option value="before">Before selection</option><option value="after">After selection</option></select></label>}
+            {entryMode !== 'correct' && <>
+              <label>New pitch<select aria-label="Entry pitch" value={entryStep} onChange={e => setEntryStep(e.target.value as Step)}>{['C', 'D', 'E', 'F', 'G', 'A', 'B'].map(step => <option key={step} value={step}>{step === 'B' ? 'H' : step}</option>)}</select></label>
+              <label>New octave<select aria-label="Entry octave" value={entryOctave} onChange={e => setEntryOctave(Number(e.target.value))}>{Array.from({ length: 9 }, (_, i) => <option key={i}>{i}</option>)}</select></label>
+              <label>New accidental<select aria-label="Entry accidental" value={entryAccidental} onChange={e => setEntryAccidental(e.target.value)}><option value="auto">Auto</option><option value="0">Natural</option><option value="1">Sharp</option><option value="-1">Flat</option><option value="2">Double sharp</option><option value="-2">Double flat</option></select></label>
+            </>}
+            <label>Duration<select aria-label="Rhythm duration" value={entryDuration} onChange={e => setEntryDuration(e.target.value as ImportedDuration)}>{durationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Dots<select aria-label="Rhythm dots" value={entryDots} onChange={e => setEntryDots(Number(e.target.value) as 0 | 1 | 2)}><option value="0">None</option><option value="1">One</option><option value="2">Two</option></select></label>
+            {entryMode === 'insert' && <><button onClick={() => enter('note')}>Add note</button><button onClick={() => enter('rest')}>Add rest</button></>}
+            {entryMode === 'chord' && <button disabled={selected?.kind !== 'note'} onClick={() => enter('note')}>Add chord tone</button>}
+            <button onClick={() => structure({ kind: 'duration', type: entryDuration, dots: entryDots })}>Set selected duration</button>
+            <button disabled={selected?.kind !== 'note'} onClick={() => structure({ kind: 'delete' })}>Delete note</button>
+          </div>
+          <div className="entry-bar-actions"><button onClick={() => structure({ kind: 'bar', position: 'before' })}>Insert bar before</button><button onClick={() => structure({ kind: 'bar', position: 'after' })}>Insert bar after</button></div>
+          <p className="entry-help">Choose Insert notes and rests, then select a rest to fill it. C D E F G A H enter pitches; B enters B-flat; R adds a rest. New notes use the selected staff and voice. In Build chord, new pitches share the selected note’s duration; Set selected duration changes the whole chord. Shortening leaves a rest; lengthening uses following rests. Full bars need more rest space or a new bar. Delete removes a chord tone or replaces a single note with a rest. Connected or complex notation can require source editing.</p>
+        </fieldset>
+        {guide && <div className="keyboard-guide"><p>The Keyboard action control chooses whether C D E F G A H correct a selected pitch, insert notes, or add chord tones. H uses the international B position; B explicitly enters B-flat. Auto follows the active signature; Natural writes ♮. In Insert mode, R adds a rest and successful entries continue after the new note. ↑ ↓ change the entry octave in Insert/Build chord, or the selected note's octave in Correct mode. ← → select adjacent notes. Delete/Backspace removes a pitch or replaces a single note with a rest. Cmd/Ctrl+Z undoes, Shift+Cmd/Ctrl+Z redoes.</p><p>Pitch corrections preserve the existing rhythm, voices, ornaments and other notation. Tied pitches are checked together. Structural edits preserve surrounding voices and reject unsupported connected notation. The note selector includes hidden and cue notes. Use the advanced source editor for corrections without a dedicated control.</p></div>}
         {sourceDirty && <p className="imported-notices" role="status">Apply or discard your source changes before saving or exporting.</p>}
         {exportDiagnostics.length > 0 && <div className="imported-notices"><strong>PDF engraving notes</strong><ul>{exportDiagnostics.map((notice, i) => <li key={i}>{notice}</li>)}</ul></div>}
         {progress && <div className="export-banner" role="status">{progress}<button onClick={() => pdfController.current?.abort()}>Cancel export</button></div>}
