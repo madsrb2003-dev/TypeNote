@@ -1,6 +1,6 @@
 # TypeNote
 
-A local piano score editor built with React, TypeScript, Vite, VexFlow SVG notation for native scores, and Verovio for imported MusicXML. Scores stay in the browser until you download an editable file. There are no accounts, uploads, or server storage.
+A local piano score editor built with React, TypeScript, Vite, VexFlow SVG notation for native scores, and Verovio for imported MusicXML. Native/XML scores stay in the browser until you download an editable file. PDF recognition copies a selected PDF to a local recognition folder on this computer. There are no accounts or external score uploads.
 
 ## Run locally
 
@@ -29,13 +29,27 @@ See [notation coverage and limits](NOTATION.md) for supported forms and verifica
 
 ## Imported scores
 
+**Open PDF** lets you select a PDF and recognize it locally. Choose **Recognize PDF** to process all pages, or enter page numbers/ranges such as `2-5,8` to skip a cover or import a smaller section. Recognition takes time and can be cancelled. A single successful result opens automatically in the MusicXML editor as an **unsaved** document. Use **Save score** to download an editable version-4 `.typenote.json`, or **Save MusicXML** for the XML itself.
+
+Recognition can lose notes, rhythm, voices and markings. Compare the result with **View original PDF** and review recognition/engraving diagnostics. If recognition creates several documents, choose which result to open; **Recognition results** lets you return to the other outputs. Failed/cancelled jobs retain their originals and provider files; any readable partial results are clearly labelled and open only when selected. An unsuccessful import preserves the current score.
+
+PDF import works through the local server started by `npm run dev` or `npm run preview`. It requires Python 3, Poppler `pdfinfo`, and a local Audiveris executable with OCR language data. This workspace has its evaluated runtime configured in ignored `.typenote-tools/`. On another computer, install those tools and set `TYPENOTE_AUDIVERIS` to the Audiveris executable before starting TypeNote, for example on macOS:
+
+```sh
+TYPENOTE_AUDIVERIS='/Applications/Audiveris.app/Contents/MacOS/Audiveris' npm run dev
+```
+
+The app also discovers `.typenote-tools/audiveris` or `audiveris` on PATH; `TYPENOTE_PYTHON` can select a Python executable. Missing tools produce setup feedback. No automatic downloads, paid service, or remote recognition is used. A static deployment of `dist/` alone cannot run the local recognition process. See [local recognition setup and API](scripts/recognition/README.md).
+
+Accepted PDFs and recognition files are retained under ignored `.typenote-imports/<job-id>/`, including `original.pdf`, complete MusicXML, `.omr` projects, logs and job status. This folder is blocked from ordinary static-file serving; the local import API provides the original and result downloads. Limits: 100 MiB/PDF, 200 source pages, one recognition job at a time, ten minutes/job. Encrypted, unreadable or invalid PDFs are rejected. Source files are kept until you remove the relevant local job folder; TypeNote JSON contains the editable XML, **not the original PDF or a recognition project bundle**. Recognition history/source links are not restored from saved JSON.
+
 **Open MusicXML** opens an uncompressed `.musicxml` or `.xml` score-partwise document locally. The complete XML is the editable source, rather than a conversion into the smaller native score model. Unknown notation and layout attributes are retained through targeted edits and saving. XML formatting may change and selectable elements receive stable IDs; this is structural preservation, not a byte-for-byte archive. Keep the original file as well.
 
 Verovio engraves the score in a local WebAssembly worker, including notation outside the native editor’s model. Click an individual notehead (including chord members) to highlight and correct its pitch, octave or accidental. The note selector also includes hidden and cue notes. C D E F G A H replace the selected pitch; B enters explicit B-flat. Auto follows the active signature and local accidental context; Natural writes ♮. Arrow keys select adjacent notes or change octave. Fingering, title, composer, dynamics, expression text and rehearsal marks have dedicated controls. Unambiguous tied pitches are corrected together; ambiguous ties require source editing.
 
 **Advanced MusicXML editing** allows structural, rhythmic and other corrections without a dedicated control. Apply source changes validates XML structure and creates an undo step; it does not perform complete MusicXML schema or musical validation. Imported-score undo retains up to 30 snapshots subject to a 32 MB history budget. **Save score** downloads a version-4 `{ kind: "musicxml" }` TypeNote file containing the complete XML. **Save MusicXML** downloads that XML directly. Reopen TypeNote JSON through Open file and XML through Open MusicXML; the imported-score Open file control accepts both.
 
-Rendering is separate from preservation: Verovio cannot guarantee faithful display of every MusicXML construct or engraving combination. Review displayed engraving diagnostics and the resulting pages. Source content remains saveable even if rendering fails. No PDF recognition is involved. See [coverage and limits](NOTATION.md).
+Rendering is separate from preservation: Verovio cannot guarantee faithful display of every MusicXML construct or engraving combination. Review displayed engraving diagnostics and the resulting pages. Source content remains saveable even if rendering fails. Opening MusicXML directly bypasses PDF recognition. See [coverage and limits](NOTATION.md).
 
 ## Native editor controls
 
@@ -97,8 +111,10 @@ Native editable files use **version 3**; imported MusicXML documents use **versi
 - `src/notation/imported.ts` and `imported.worker.ts`: cancellable local Verovio rendering and sanitized SVG output.
 - `src/export/importedPdf.ts`: imported-score A4 PDF generation from the same rendered pages.
 - `src/App.tsx`: editor controls, keyboard interaction, and file download/open.
+- `src/components/PdfImport.tsx` and `src/documents/recognition.ts`: PDF selection, local job progress/cancellation, output selection, and opening complete MusicXML in the existing editor.
+- `scripts/recognition/`: loopback-only Vite development/preview API and Python recognition worker, reusing the replaceable local OMR adapter. Private originals/results stay in `.typenote-imports/`; the runtime is configured separately from browser assets.
 
-New schema versions must preserve compatibility or explicitly migrate old scores. Native scores use the version-3 domain model; imported scores retain complete MusicXML inside version-4 TypeNote JSON. Renderer projections are never written back as the authoritative imported score. Future OMR will produce structured score data through a separate adapter.
+New schema versions must preserve compatibility or explicitly migrate old scores. Native scores use the version-3 domain model; imported scores retain complete MusicXML inside version-4 TypeNote JSON. Renderer projections are never written back as the authoritative imported score. PDF recognition uses the separate local adapter and opens its complete MusicXML through that same version-4 path.
 
 ## Checks
 
@@ -116,4 +132,8 @@ The bundled Verovio renderer is LGPL-3.0-or-later. See [third-party notices](THI
 
 ## Later milestones
 
-Playback and PDF recognition are not implemented. Further notation work should use the explicit gaps in [NOTATION.md](NOTATION.md), rather than assuming exhaustive coverage. PDF-to-score recognition requires a separate OMR feasibility investigation, including scanned and digitally generated inputs, accuracy measurements, privacy, and correction workflows. No PDF recognition provider has been selected.
+Playback is not implemented. Local PDF import is available as described above; recognition accuracy, structural correction tools and production distribution still need further work. Further notation work should use the explicit gaps in [NOTATION.md](NOTATION.md), rather than assuming exhaustive coverage.
+
+The [local OMR feasibility investigation](docs/omr-feasibility.md) evaluates the 15 supplied PDFs using Audiveris, with source-quality review, hand-checked excerpts and correction/export checks. The [evaluation harness](scripts/omr/README.md) preserves original PDFs, recognition projects, complete MusicXML and diagnostics locally. It requires a separately installed command-line provider, Python and Poppler; it is separate from the browser app. Generated uncompressed MusicXML can be opened using the existing correction workflow. Original PDFs remain alongside the results and are not embedded in saved TypeNote documents.
+
+Recognition needs review and correction before use. A generated XML file or readable preview does not establish that all notes, rhythm, voices or expression were recovered. Local import currently uses Audiveris; an external upload service and packaged application distribution have not been selected. [PROGRESS.md](PROGRESS.md) records completed work and remaining milestones.

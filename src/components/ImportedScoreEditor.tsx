@@ -6,6 +6,9 @@ import type { Alteration, Score, Step } from '../domain/types';
 import { MAX_SCORE_FILE_BYTES } from '../domain/types';
 import { parseScore } from '../domain/storage';
 import './imported.css';
+import { PdfImport } from './PdfImport';
+import { recognitionUrl } from '../documents/recognition';
+import type { RecognitionSource } from '../documents/recognition';
 
 function download(contents: BlobPart, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([contents], { type }));
@@ -32,6 +35,17 @@ function ImportedPage({ page, index, selectedId, onSelect }: { page: RenderedMus
       el.setAttribute('tabindex', '0'); el.setAttribute('aria-label', `Select imported note ${el.id}`);
     }
     ref.current.replaceChildren(document.importNode(svg, true));
+    // Hollow noteheads must also respond when clicked in their unpainted centre.
+    // Keep these targets in the preview DOM only, outside saved XML and PDF SVGs.
+    ref.current.querySelectorAll<SVGGElement>('[data-note-id] .notehead').forEach(head => {
+      const box = head.getBBox();
+      if (box.width <= 0 || box.height <= 0) return;
+      const target = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      for (const [name, value] of Object.entries({ x: box.x, y: box.y, width: box.width, height: box.height })) target.setAttribute(name, String(value));
+      target.setAttribute('fill', 'transparent'); target.setAttribute('stroke', 'none');
+      target.setAttribute('pointer-events', 'all'); target.setAttribute('aria-hidden', 'true');
+      head.append(target);
+    });
   }, [page, index]);
   useEffect(() => {
     ref.current?.querySelectorAll('[data-note-id]').forEach(el => {
@@ -48,10 +62,11 @@ function ImportedPage({ page, index, selectedId, onSelect }: { page: RenderedMus
   }} />;
 }
 
-interface Props { initial: MusicXmlDocument; onNew: () => void; onNative: (score: Score) => void }
-export function ImportedScoreEditor({ initial, onNew, onNative }: Props) {
+interface Props { initial: MusicXmlDocument; initialSource?: RecognitionSource; onNew: () => void; onNative: (score: Score) => void }
+export function ImportedScoreEditor({ initial, initialSource, onNew, onNative }: Props) {
   const [doc, setDoc] = useState(initial);
-  const [saved, setSaved] = useState(() => serializeMusicXmlDocument(initial));
+  const [saved, setSaved] = useState(() => initialSource ? '' : serializeMusicXmlDocument(initial));
+  const [recognitionSource, setRecognitionSource] = useState(initialSource);
   const [past, setPast] = useState<MusicXmlDocument[]>([]);
   const [future, setFuture] = useState<MusicXmlDocument[]>([]);
   const info = useMemo(() => inspectMusicXml(doc), [doc]);
@@ -144,7 +159,7 @@ export function ImportedScoreEditor({ initial, onNew, onNative }: Props) {
       }
       const next = /^\s*\{/.test(text) ? parseMusicXmlDocument(text) : openMusicXml(text, file.name);
       if (!confirmDiscard()) return;
-      setDoc(next); setSaved(serializeMusicXmlDocument(next)); setPast([]); setFuture([]); setRendered(null);
+      setDoc(next); setSaved(serializeMusicXmlDocument(next)); setRecognitionSource(undefined); setPast([]); setFuture([]); setRendered(null);
       setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setSourceDraft(''); setSourceBase(''); report('Score opened with its complete notation.');
     } catch (error) { if (request === fileRequest.current) report(error instanceof Error ? error.message : 'Could not open score.', true); }
   }
@@ -161,6 +176,12 @@ export function ImportedScoreEditor({ initial, onNew, onNative }: Props) {
   return <div className="app-shell">
     <header className="app-header"><div className="brand"><span className="brand-mark" aria-hidden="true">♮</span>TypeNote<span className="brand-tag">PIANO STUDIO</span></div><div className="file-actions">
       <button onClick={() => { if (confirmDiscard()) onNew(); }}>New score</button><button onClick={() => fileRef.current?.click()}>Open file</button>
+      <PdfImport source={recognitionSource} onOpen={(next, source) => {
+        if (!confirmDiscard()) return false;
+        fileRequest.current++; setDoc(next); setSaved(''); setRecognitionSource(source); setPast([]); setFuture([]); setRendered(null);
+        setSelectedId(inspectMusicXml(next).notes[0]?.id ?? ''); setSourceDraft(''); setSourceBase('');
+        report('PDF recognition opened. Review the notation, then Save score to keep an editable TypeNote file.'); return true;
+      }} />
       <input ref={fileRef} hidden type="file" accept=".xml,.musicxml,.json" aria-label="Open imported score file" onChange={e => { void openFile(e.target.files?.[0]); e.target.value = ''; }} />
       <button className="primary" disabled={sourceDirty} onClick={() => attempt(() => { const text = serializeMusicXmlDocument(doc); download(text, `${fileName}.typenote.json`, 'application/json'); setSaved(text); report('Complete editable score saved.'); })}>Save score</button>
       <button disabled={sourceDirty} onClick={() => download(doc.xml, `${fileName}.musicxml`, 'application/vnd.recordare.musicxml+xml')}>Save MusicXML</button>
@@ -168,6 +189,7 @@ export function ImportedScoreEditor({ initial, onNew, onNative }: Props) {
     </div></header>
     <main><div className="workspace-heading"><div><div className="eyebrow">IMPORTED SCORE</div><h1>{info.title || 'Piano score'}</h1><p>Correct notes while retaining the complete score.</p></div><span className="local-badge"><span />Files stay on your device</span></div>
       <section className="editor imported-editor" ref={editorRef} tabIndex={0} aria-label="Imported score editor" onKeyDown={onKeyDown}>
+        {recognitionSource && <div className="recognition-source"><p>{recognitionSource.partial ? 'Partial PDF recognition' : 'Recognized from PDF'}: <strong>{recognitionSource.filename}</strong>. Review notes, rhythm and markings against the original. Save score downloads editable .typenote.json; the original PDF is kept separately on this computer.</p><a href={recognitionUrl(recognitionSource.jobId, 'original')} target="_blank" rel="noreferrer">View original PDF</a><a href={recognitionUrl(recognitionSource.jobId, 'log')} download>Recognition log</a>{recognitionSource.diagnostics.length > 0 && <details><summary>Recognition diagnostics</summary><ul>{recognitionSource.diagnostics.map((line, index) => <li key={index}>{line}</li>)}</ul></details>}</div>}
         <div className="document-bar"><div className="document-name"><input aria-label="Score title" value={info.title} onChange={e => attempt(() => commit(editImportedMetadata(doc, { title: e.target.value })))} /><span className={`save-state ${dirty ? 'unsaved' : ''}`}>{dirty ? 'Unsaved changes' : 'No unsaved changes'}</span></div><div className="history-actions"><button aria-label="Undo" disabled={!past.length} onClick={undo}>↶</button><button aria-label="Redo" disabled={!future.length} onClick={redo}>↷</button><button aria-expanded={guide} onClick={() => setGuide(!guide)}>Keyboard guide</button></div></div>
         <div className="imported-controls">
           <label>Composer<input aria-label="Composer" value={info.composer} onChange={e => attempt(() => commit(editImportedMetadata(doc, { composer: e.target.value })))} /></label>
@@ -195,7 +217,7 @@ export function ImportedScoreEditor({ initial, onNew, onNative }: Props) {
           if (!inspectMusicXml(next).notes.some(note => note.id === selectedId)) setSelectedId('');
         })}>Apply source changes</button><button onClick={() => { if (!sourceDirty || window.confirm('Discard unapplied source changes and reload the current score?')) { setSourceDraft(doc.xml); setSourceBase(doc.xml); } }}>Reload current source</button></details>
         <div className={`status-bar ${failed ? 'error' : ''}`}><span role="status" aria-live="polite">{message}</span><span>{info.notes.length} notes and rests</span></div>
-      </section><p className="milestone-note">Full-score editing · Complete MusicXML retained locally. PDF recognition is a separate milestone.</p>
+      </section><p className="milestone-note">Full-score editing · Complete MusicXML retained locally. Review recognized notation against the original before exporting.</p>
     </main>
   </div>;
 }

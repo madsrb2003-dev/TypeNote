@@ -2,6 +2,8 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { ImportedScoreEditor } from './components/ImportedScoreEditor';
 import type { MusicXmlDocument } from './documents/types';
+import { PdfImport } from './components/PdfImport';
+import type { RecognitionSource } from './documents/recognition';
 import { NotationPanel } from './components/NotationPanel';
 import { effectiveSettings, resolvePitch } from './domain/settings';
 import { measureCapacity } from './domain/timing';
@@ -23,13 +25,13 @@ function DurationIcon({ duration }: { duration: Duration }) {
 }
 
 export default function App() {
-  const [imported, setImported] = useState<MusicXmlDocument | null>(null);
+  const [imported, setImported] = useState<{ doc: MusicXmlDocument; source?: RecognitionSource } | null>(null);
   const [nativeInitial, setNativeInitial] = useState<Score | undefined>();
-  if (imported) return <ImportedScoreEditor initial={imported} onNew={() => { setNativeInitial(undefined); setImported(null); }} onNative={score => { setNativeInitial(score); setImported(null); }} />;
-  return <NativeEditor initialScore={nativeInitial} onImported={setImported} />;
+  if (imported) return <ImportedScoreEditor initial={imported.doc} initialSource={imported.source} onNew={() => { setNativeInitial(undefined); setImported(null); }} onNative={score => { setNativeInitial(score); setImported(null); }} />;
+  return <NativeEditor initialScore={nativeInitial} onImported={(doc, source) => setImported({ doc, source })} />;
 }
 
-function NativeEditor({ initialScore, onImported }: { initialScore?: Score; onImported: (doc: MusicXmlDocument) => void }) {
+function NativeEditor({ initialScore, onImported }: { initialScore?: Score; onImported: (doc: MusicXmlDocument, source?: RecognitionSource) => void }) {
   const [history, dispatch] = useReducer(historyReducer, undefined, () => initialHistory({ score: initialScore ?? createScore(), selection: firstPosition }));
   const { score, selection } = history.present;
   const [entryOctave, setOctave] = useState(4);
@@ -309,6 +311,10 @@ function NativeEditor({ initialScore, onImported }: { initialScore?: Score; onIm
       <div className="file-actions">
         <button onClick={() => reset(createScore(), true)}>New score</button>
         <button onClick={() => fileRef.current?.click()}>Open file</button>
+        <PdfImport onOpen={(doc, source) => {
+          if (dirtyRef.current && !window.confirm('Discard unsaved changes to the current score?')) return false;
+          openRequest.current++; onImported(doc, source); return true;
+        }} />
         <button className="primary" onClick={save}><span aria-hidden="true">↓</span> Save score</button>
         <button onClick={() => xmlRef.current?.click()}>Open MusicXML</button><button onClick={() => void exportXml()}>Save MusicXML</button>
         <input ref={xmlRef} type="file" accept=".xml,.musicxml" aria-label="Open MusicXML file" hidden onChange={event => { void openXml(event.target.files?.[0]); event.target.value = ''; }} />
@@ -357,7 +363,7 @@ function NativeEditor({ initialScore, onImported }: { initialScore?: Score; onIm
       </section>
 
       <div className="workspace-footer"><p><kbd>C</kbd> <kbd>D</kbd> <kbd>E</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>A</kbd> <kbd>H</kbd><span>A melody starts with a letter.</span></p><button className="text-button" onClick={() => reset(createDemoScore(), false)}>Try a short example →</button></div>
-      <p className="milestone-note">Local piano editor · Save an editable .typenote.json file or download an A4 PDF. Notation tools include signatures, voices and piano expression. PDF recognition is a later milestone.</p>
+      <p className="milestone-note">Local piano editor · Open a PDF for local recognition, save an editable .typenote.json file, or download an A4 PDF. Review recognized notation against the original.</p>
     </main>
   </div>;
 }

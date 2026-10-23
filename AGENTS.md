@@ -7,11 +7,15 @@
 - Structured version-3 score lives in `src/domain/`. Timing uses reduced rational sixteenth-note units for dots/tuplets; meter and pickup determine capacity. Four voices per staff, breve through 128th durations, octave 0–8, measure-boundary signature/meter/clef changes. `NOTATION.md` records supported notation and limits.
 - Confirmed input convention: default Auto follows key signature and in-bar accidental state without redundant local signs. H selects international step B; explicit Natural makes it B-natural. B always enters explicit B-flat. Named or manually assembled signatures are supported. Local Natural/Sharp/Flat/courtesy choices preserve display intent separately from pitch alteration.
 - Version-3 notes/chords contain 1–10 pitches sharing one duration; pitch order is stable for individual editing. Duplicate step/octave positions are rejected. K/Build chord starts entry at one position; Enter finishes. Chord noteheads and pitch chips select individual pitches with a blue highlight; Delete/Backspace removes an explicitly selected pitch, while Delete event removes the whole event. Shift+Delete removes the active pitch. Pitch selection is included in undo/redo snapshots. Version-1 single-note and version-2 chord files are validated and migrated to version 3. File size limit is 10 MB.
-- Validated `.typenote.json` files are downloaded and opened locally. No automatic persistence across reloads, backend, hosting, accounts, or PDF recognition is implemented.
+- Validated `.typenote.json` files are downloaded and opened locally. There is no editable-score autosave across reloads, hosting, accounts or external score upload. Local PDF recognition job files persist separately on this computer.
 - Direct PDF download uses pdf-lib and shared VexFlow engraving in `src/notation/`. A4 portrait, automatic pagination, ~15mm margins, and 300 dpi images of notation; no print dialog or external service. `src/export/` isolates pagination/export. Visually inspect actual rendered PDF pages after notation/export changes.
 - UI MusicXML import uses `src/documents/`: complete score-partwise XML is authoritative in version-4 `{ kind: "musicxml" }` documents, with targeted pitch/fingering/metadata/direction edits and advanced source editing. Unknown source notation is retained, independently of renderer support. Imported history has up to 30 snapshots with a 32 MB budget. Compressed/timewise files are unsupported. `src/interchange/musicxml.ts` remains the native exporter and restricted compatibility adapter, not the UI import path.
-- Imported rendering uses `src/notation/imported.ts` and `imported.worker.ts`; `src/export/importedPdf.ts` exports the same A4 pages at 300 dpi locally. Surface diagnostics, preserve source if rendering fails, and never replace original MusicXML with a renderer projection. Document source preservation, rendering and dedicated editing as separate capabilities. No PDF recognition provider is selected.
+- Imported rendering uses `src/notation/imported.ts` and `imported.worker.ts`; `src/export/importedPdf.ts` exports the same A4 pages at 300 dpi locally. Surface diagnostics, preserve source if rendering fails, and never replace original MusicXML with a renderer projection. Document source preservation, rendering and dedicated editing as separate capabilities. Local PDF import uses the replaceable Audiveris adapter; recognition is not guaranteed accurate.
 - `README.md` documents keyboard controls, measure editing semantics, architecture, and known scope limits.
+- Local PDF OMR feasibility tools live in `scripts/omr/` (Python standard library plus Poppler `pdfinfo`, separately supplied Audiveris executable). Run `python3 -m unittest discover -s scripts/omr -p 'test_*.py'`. Originals, provider projects/logs and complete MusicXML are retained in a new output folder; private evaluations stay under ignored `test-results/`. Playwright's default output is isolated in `test-results/e2e/` to preserve sibling evaluation artifacts. `docs/omr-feasibility.md` records evidence and limits; `PROGRESS.md` records completed and remaining work.
+- Open PDF in both editors uses `src/components/PdfImport.tsx` and `src/documents/recognition.ts`. Vite development/preview installs `scripts/recognition/plugin.mjs`, a loopback/same-origin API which starts the Python worker and Audiveris locally. Static `dist/` alone cannot recognize PDFs. Configure `TYPENOTE_AUDIVERIS` or ignored `.typenote-tools/audiveris`; Python 3 and Poppler `pdfinfo` are required. Originals/results persist in ignored, statically blocked `.typenote-imports/<uuid>/`. Limits: 100 MiB, 200 pages, 10 minutes, one job/server. Multiple outputs remain selectable; failed partial results open only explicitly; single successful output opens unsaved as version-4 MusicXML and can be saved as TypeNote JSON. Original PDF is not embedded in that JSON. Worker/API checks: `python3 -m unittest discover -s scripts/recognition -p 'test_*.py'` and `node --test scripts/recognition/plugin.test.mjs`. Keep job/runtime folders out of Vite file watching and preload Verovio dependencies to prevent a first-render optimizer reload losing the opened document.
+
+- Browser PDF recognition explicitly uses 400 dpi after the Departure staff-loss investigation. Read-only provider-project checks flag reduced staff counts; INFO-level rhythm failures are surfaced. This recovers Departure's 34-bar/two-staff structure but does not establish note accuracy. See `docs/departure-recognition-review.md`; manually corrected private scores are not runtime recognition replacements.
 
 ## Product purpose and confirmed requirements
 
@@ -155,3 +159,15 @@ Before finishing, review for unrelated changes and report concisely:
 Never claim that tests, recognition accuracy, visual inspection or full-app behavior
 were verified unless they actually were. Keep this file current as the project's
 stack, commands and architecture become established; record confirmed facts only.
+
+## Agent Delegation and Resource Efficiency
+
+The main agent is responsible for deciding when to delegate work.
+
+- Use subagents when parallel execution materially improves quality or development speed.
+- Prefer a single agent for small, sequential, or tightly coupled tasks.
+- Avoid multiple agents independently investigating the same problem without a clear reason.
+- Minimize unnecessary context loading and repeated codebase exploration.
+- Prefer focused tasks with clear deliverables.
+- Record completed milestones and remaining work in PROGRESS.md.
+- Never sacrifice code correctness, testing, or maintainability solely to reduce token consumption.

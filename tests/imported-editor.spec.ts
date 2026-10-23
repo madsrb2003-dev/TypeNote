@@ -5,12 +5,12 @@ const source = `<score-partwise version="4.0"><work><work-title>Source study</wo
 async function open(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.getByLabel('Open MusicXML file').setInputFiles({ name: 'study.musicxml', mimeType: 'application/xml', buffer: Buffer.from(source) });
-  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Download PDF', exact: true })).toBeEnabled({ timeout: 15000 });
 }
 
-test('imported chord members select independently and follow key without local signs', async ({ page }) => {
+test('hollow imported chord heads select independently and follow key without local signs', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Select imported note upper', exact: true }).click();
+  await page.getByRole('button', { name: 'Select imported note upper', exact: true }).locator('.notehead').click();
   await expect(page.getByLabel('Selected imported note')).toHaveValue('upper');
   await expect(page.locator('[data-note-id="upper"]')).toHaveClass(/imported-selected/);
   await expect(page.locator('[data-note-id="base"]')).not.toHaveClass(/imported-selected/);

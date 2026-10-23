@@ -1,6 +1,6 @@
 # Piano notation coverage
 
-TypeNote separates musical content from engraving, interaction and PDF generation. Native version-3 scores use VexFlow and event/measure anchors. Imported version-4 documents retain complete MusicXML and use Verovio 6.3 in a local worker. There is no recognition service or playback engine.
+TypeNote separates musical content from engraving, interaction and PDF generation. Native version-3 scores use VexFlow and event/measure anchors. Imported version-4 documents retain complete MusicXML and use Verovio 6.3 in a local worker. PDF import uses a local Audiveris process through the development/preview server. There is no external recognition service or playback engine.
 
 Preserving a construct, rendering it correctly, and providing a dedicated editing control are separate capabilities. Full XML preservation does not imply exhaustive professional engraving or full visual authoring.
 
@@ -73,4 +73,4 @@ The `full-piano.musicxml` and `nested-rhythm.musicxml` fixtures exercise source 
 
 `src/interchange/musicxml.ts` exports native version-3 scores to standard MusicXML and retains its restricted importer for compatibility tests. The UI's Open MusicXML action uses the complete-document path above, not this reduced adapter. Native MusicXML export does not preserve every TypeNote ID or automatic-versus-explicit display choice; save native TypeNote JSON for continued editing.
 
-PDF-to-score recognition remains a separate feasibility and implementation milestone. No recognition provider or external upload service is configured.
+PDF-to-score recognition has a separate [local feasibility investigation](docs/omr-feasibility.md) and [evaluation harness](scripts/omr/README.md). **Open PDF** now runs the local recognition adapter from the browser UI through the local development/preview server. Recognition output is retained as complete MusicXML, with the original PDF kept separately in the local job folder. Provider recognition, source preservation, rendering and dedicated correction controls remain separate capabilities; successful export or rendering is not an accuracy guarantee. Multiple documents and partial failures are surfaced for review. Dedicated structural/rhythm repair still requires advanced MusicXML editing or provider-project corrections. No external upload service is configured.

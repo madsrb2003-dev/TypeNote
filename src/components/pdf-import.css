@@ -1,0 +1,21 @@
+.pdf-import-dialog { width:min(650px, calc(100vw - 28px)); max-height:85vh; overflow:auto; padding:24px; border:1px solid #d9dfd2; border-radius:12px; color:#263c33; background:#fffefa; box-shadow:0 15px 70px #18342233; }
+.pdf-import-dialog::backdrop { background:#142f285c; }
+.pdf-import-heading { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; }
+.pdf-import-heading h2 { font:normal 25px/1.2 Georgia,serif; margin:0; }
+.pdf-import-heading button { padding:3px 9px; font-size:22px; }
+.pdf-import-dialog p { font-size:13px; line-height:1.7; }
+.pdf-import-filename { overflow-wrap:anywhere; font-weight:600; }
+.pdf-import-pages { display:flex; flex-direction:column; gap:8px; font-size:12px; font-weight:600; margin-top:18px; }
+.pdf-import-hint { color:#6b7765; }
+.pdf-import-error { padding:12px; background:#fff0e4; color:#8f4228; border-radius:6px; }
+.pdf-import-actions, .pdf-import-links { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:20px; }
+.pdf-import-dialog a { color:#2d664a; font-size:12px; }
+.pdf-import-result { border-top:1px solid #d9dfd2; margin-top:20px; }
+.pdf-import-result details { margin-top:18px; font-size:12px; overflow-wrap:anywhere; }
+.pdf-import-result li { margin-top:7px; line-height:1.5; }
+.pdf-import-output { display:flex; align-items:center; flex-wrap:wrap; gap:12px; border-top:1px solid #e5e7df; padding:12px 0; }
+.pdf-import-output span { flex:1 1 180px; font-size:12px; overflow-wrap:anywhere; }
+.recognition-source { padding:12px 20px; background:#fff5e6; color:#6c532e; font-size:12px; line-height:1.7; border-bottom:1px solid #eadcc3; }
+.recognition-source p { margin:0; }
+.recognition-source a { color:#375e42; margin-right:16px; }
+.recognition-source li { overflow-wrap:anywhere; }
